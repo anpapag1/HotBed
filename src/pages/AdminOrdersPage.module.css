@@ -22,6 +22,41 @@
   flex-wrap: wrap;
 }
 
+.topBarActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hiddenFileInput {
+  display: none;
+}
+
+.btnImport {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btnImport:hover:not(:disabled) {
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+}
+
+.btnImport:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .headingGroup {
   display: flex;
   flex-direction: column;
@@ -478,6 +513,15 @@
   .topBar {
     align-items: stretch;
     margin-bottom: 20px;
+  }
+
+  .topBarActions {
+    width: 100%;
+  }
+
+  .topBarActions button {
+    flex: 1;
+    justify-content: center;
   }
 
   .pageTitle {

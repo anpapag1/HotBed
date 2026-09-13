@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Send, MessageSquare, Trash2 } from 'lucide-react';
 import type { PrintItem } from '../../types/database';
 import { getStatusConfig } from '../../utils/statusConfig';
@@ -121,7 +122,8 @@ export function CommentsDrawer({
     setComments(getItemComments(item.id, item.comments));
   };
 
-  return (
+  return createPortal(
+    (
     <div className={styles.drawerOverlay} onClick={onClose}>
       <aside
         className={styles.drawer}
@@ -242,6 +244,8 @@ export function CommentsDrawer({
         </div>
       </aside>
     </div>
+    ),
+    document.body
   );
 }
 
