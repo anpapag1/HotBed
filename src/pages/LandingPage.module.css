@@ -44,6 +44,11 @@
   width: 100%;
 }
 
+@keyframes heroFadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .heroSection {
   display: flex;
   flex-direction: column;
@@ -68,6 +73,7 @@
   color: var(--text-secondary);
   margin-bottom: 24px;
   letter-spacing: 0.02em;
+  animation: heroFadeUp 240ms cubic-bezier(0.16, 1, 0.3, 1) 60ms both;
 }
 
 .pulseDot {
@@ -93,6 +99,7 @@
 .logoWrap {
   position: relative;
   margin-bottom: 20px;
+  animation: heroFadeUp 240ms cubic-bezier(0.16, 1, 0.3, 1) 0ms both;
 }
 
 .logoGlow {
@@ -118,6 +125,7 @@
   color: var(--text-primary);
   line-height: 1.15;
   margin-bottom: 14px;
+  animation: heroFadeUp 260ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
 }
 
 .brandGradient {
@@ -131,6 +139,7 @@
   color: var(--text-secondary);
   line-height: 1.6;
   max-width: 520px;
+  animation: heroFadeUp 260ms cubic-bezier(0.16, 1, 0.3, 1) 180ms both;
 }
 
 .lookupCard {
@@ -145,6 +154,7 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+  animation: heroFadeUp 280ms cubic-bezier(0.16, 1, 0.3, 1) 240ms both;
 }
 
 .form {
@@ -327,7 +337,11 @@
   text-align: left;
   box-shadow: var(--shadow-sm);
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  animation: heroFadeUp 280ms cubic-bezier(0.16, 1, 0.3, 1) 300ms both;
 }
+
+.featureCard:nth-child(2) { animation-delay: 360ms; }
+.featureCard:nth-child(3) { animation-delay: 420ms; }
 
 .featureCard:hover {
   transform: translateY(-2px);

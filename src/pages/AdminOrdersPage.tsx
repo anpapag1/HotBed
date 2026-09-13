@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -10,10 +10,17 @@ import {
   Printer,
   Edit2,
   Check,
-  X
+  X,
+  Upload
 } from 'lucide-react';
-import { fetchAllOrdersWithSummaries, createOrder, updateOrder } from '../services/orderService';
-import type { OrderSummary } from '../types/database';
+import {
+  fetchAllOrdersWithSummaries,
+  fetchOrderByCode,
+  createOrder,
+  updateOrder,
+  adminInsertPrint,
+} from '../services/orderService';
+import type { OrderSummary, PrintStatus } from '../types/database';
 import { Header } from '../components/common/Header';
 import styles from './AdminOrdersPage.module.css';
 
@@ -27,7 +34,96 @@ export function AdminOrdersPage() {
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [editingCustomerName, setEditingCustomerName] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+
+  const parseCsv = (csv: string): string[][] => {
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let value = '';
+    let quoted = false;
+
+    for (let index = 0; index < csv.length; index += 1) {
+      const character = csv[index];
+      const nextCharacter = csv[index + 1];
+
+      if (character === '"' && quoted && nextCharacter === '"') {
+        value += '"';
+        index += 1;
+      } else if (character === '"') {
+        quoted = !quoted;
+      } else if (character === ',' && !quoted) {
+        row.push(value.trim());
+        value = '';
+      } else if ((character === '\n' || character === '\r') && !quoted) {
+        if (character === '\r' && nextCharacter === '\n') index += 1;
+        row.push(value.trim());
+        if (row.some((cell) => cell)) rows.push(row);
+        row = [];
+        value = '';
+      } else {
+        value += character;
+      }
+    }
+
+    row.push(value.trim());
+    if (row.some((cell) => cell)) rows.push(row);
+    return rows;
+  };
+
+  const normalizeStatus = (value: string): PrintStatus => {
+    const statuses: PrintStatus[] = [
+      'Not Started',
+      'Ready to print',
+      'Printing',
+      'Finished',
+      'Delivered',
+      'Failed',
+    ];
+    return statuses.find((status) => status.toLowerCase() === value.trim().toLowerCase()) || 'Not Started';
+  };
+
+  const handleImportCsv = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const orderCode = window.prompt('Import items into which order?', 'JZJZ5T')?.trim();
+    if (!orderCode) return;
+
+    setIsImporting(true);
+    try {
+      const order = await fetchOrderByCode(orderCode);
+      if (!order) throw new Error(`Order #${orderCode.toUpperCase()} was not found.`);
+
+      const rows = parseCsv(await file.text());
+      const headers = rows.shift()?.map((header) => header.toLowerCase()) || [];
+      const column = (row: string[], name: string) => row[headers.indexOf(name)] || '';
+      const items = rows
+        .map((row) => ({
+          perigrafi: column(row, 'perigrafi'),
+          xroma: column(row, 'xroma'),
+          megethos: Number.parseFloat(column(row, 'megethos').replace('%', '')) / 100 || 1,
+          link: column(row, 'link') || null,
+          comments: column(row, 'comments') || null,
+          status: normalizeStatus(column(row, 'status')),
+        }))
+        .filter((item) => item.perigrafi);
+
+      for (const item of items) {
+        await adminInsertPrint(order.id, item);
+      }
+
+      setSummaries(await fetchAllOrdersWithSummaries());
+      alert(`Imported ${items.length} items into order #${order.order_code}.`);
+    } catch (err) {
+      console.error('CSV import failed:', err);
+      alert(err instanceof Error ? err.message : 'CSV import failed.');
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -130,13 +226,30 @@ export function AdminOrdersPage() {
               Monitor queue pipelines, manage customer orders, and advance production
             </p>
           </div>
-          <button
-            onClick={() => setIsCreating(true)}
-            className={styles.btnNewOrder}
-          >
-            <Plus size={18} />
-            <span>New Order</span>
-          </button>
+          <div className={styles.topBarActions}>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              onChange={handleImportCsv}
+              className={styles.hiddenFileInput}
+            />
+            <button
+              onClick={() => importInputRef.current?.click()}
+              className={styles.btnImport}
+              disabled={isImporting}
+            >
+              <Upload size={17} />
+              <span>{isImporting ? 'Importing...' : 'Import CSV'}</span>
+            </button>
+            <button
+              onClick={() => setIsCreating(true)}
+              className={styles.btnNewOrder}
+            >
+              <Plus size={18} />
+              <span>New Order</span>
+            </button>
+          </div>
         </div>
 
         {/* Quick Order Creator */}

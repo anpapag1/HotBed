@@ -3,6 +3,10 @@
     "Figma": {
       "url": "https://mcp.figma.com/mcp",
       "serverUrl": "https://mcp.figma.com/mcp"
+    },
+    "Supabase": {
+      "url": "https://mcp.supabase.com/mcp",
+      "serverUrl": "https://mcp.supabase.com/mcp"
     }
   }
 }
