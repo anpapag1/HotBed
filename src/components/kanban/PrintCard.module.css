@@ -1,0 +1,611 @@
+@keyframes cardEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--shadow-card);
+  animation: cardEntrance 200ms var(--ease-out) backwards;
+  transition: transform var(--transition-normal), box-shadow var(--transition-normal), border-color var(--transition-fast);
+  position: relative;
+  user-select: none;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.draggableCard {
+  cursor: grab;
+}
+
+.draggableCard:active {
+  cursor: grabbing;
+}
+
+.overlayCard {
+  box-shadow: var(--shadow-xl) !important;
+  transform: scale(1.03) rotate(1deg);
+  border-color: var(--brand-primary) !important;
+  cursor: grabbing !important;
+  z-index: 999;
+}
+
+/* Header */
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.titleArea {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+  letter-spacing: -0.2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.descriptionText {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+/* Sub tasks */
+.subtasksBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.subtasksHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.subtasksLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.btnAddSubtask {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--brand-primary);
+  background: rgba(234, 88, 12, 0.08);
+  border: 1px dashed rgba(234, 88, 12, 0.35);
+  border-radius: var(--radius-xs);
+  padding: 1px 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btnAddSubtask:hover {
+  background: rgba(234, 88, 12, 0.16);
+  border-color: var(--brand-primary);
+  transform: translateY(-1px);
+}
+
+.btnAddSubtask:active {
+  transform: translateY(0);
+}
+
+.subtaskList {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.subtaskRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.subtaskItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  transition: color var(--transition-fast), transform var(--transition-fast);
+}
+
+.subtaskItem:hover {
+  color: var(--text-primary);
+}
+
+.subtaskItem:hover:not(.subtaskItemReadOnly) {
+  transform: translateX(2px);
+}
+
+.subtaskItemReadOnly {
+  cursor: default !important;
+}
+
+.subtaskItemReadOnly:hover {
+  color: var(--text-secondary) !important;
+  transform: none !important;
+}
+
+.btnDeleteSubtask {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: all var(--transition-fast);
+}
+
+.subtaskRow:hover .btnDeleteSubtask {
+  opacity: 0.8;
+}
+
+.btnDeleteSubtask:hover {
+  opacity: 1 !important;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.checkDone {
+  color: #10b981;
+  flex-shrink: 0;
+  transition: transform var(--transition-fast);
+}
+
+.checkEmpty {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: transform var(--transition-fast);
+}
+
+.subtaskItem:hover .checkEmpty {
+  color: var(--brand-primary);
+  transform: scale(1.1);
+}
+
+.taskDoneText {
+  color: var(--text-muted);
+  text-decoration: line-through;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskText {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.addSubtaskSection {
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  animation: cardEntrance 160ms var(--ease-out);
+}
+
+.presetsLabel {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.presetChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.presetChip {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.presetChip:hover {
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+  background: var(--brand-primary-light);
+  transform: translateY(-1px);
+}
+
+.presetChipActive {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+  text-decoration: line-through;
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.subtaskInput {
+  flex: 1;
+  height: 26px;
+  font-size: 11.5px;
+  padding: 0 8px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.subtaskInput:focus {
+  border-color: var(--brand-primary);
+}
+
+.btnConfirmAdd {
+  height: 26px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--brand-primary);
+  color: #fff;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btnConfirmAdd:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Attachment preview chip */
+.attachmentRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.attachmentChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--tag-blue-text);
+  background-color: var(--tag-blue-bg);
+  border: 1px solid var(--tag-blue-border);
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  text-decoration: none;
+  max-width: 100%;
+  transition: all var(--transition-fast);
+}
+
+.attachmentChip:hover {
+  opacity: 0.95;
+  transform: translateY(-1px);
+}
+
+.extIcon {
+  opacity: 0.7;
+}
+
+/* Footer Tag Pills */
+.cardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.tagPills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.filamentPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+  font-size: 11.5px;
+  font-weight: 600;
+  border: 1px solid;
+  transition: transform var(--transition-fast);
+}
+
+.filamentPill:hover {
+  transform: translateY(-1px);
+}
+
+.filamentPillDefault {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+  font-size: 11.5px;
+  font-weight: 500;
+  background-color: var(--tag-gray-bg);
+  color: var(--tag-gray-text);
+  border: 1px solid var(--tag-gray-border);
+  transition: transform var(--transition-fast);
+}
+
+.filamentPillDefault:hover {
+  transform: translateY(-1px);
+}
+
+.filamentDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.scalePill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-weight: 600;
+  background-color: var(--tag-purple-bg);
+  color: var(--tag-purple-text);
+  border: 1px solid var(--tag-purple-border);
+  transition: transform var(--transition-fast);
+}
+
+.scalePill:hover {
+  transform: translateY(-1px);
+}
+
+.alertPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-weight: 600;
+  background-color: var(--tag-rose-bg);
+  color: var(--tag-rose-text);
+  border: 1px solid var(--tag-rose-border);
+  transition: transform var(--transition-fast);
+}
+
+.alertPill:hover {
+  transform: translateY(-1px);
+}
+
+/* Footer right: Comments Button + Quick Advance Button */
+.footerRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.btnComments {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background-color: var(--bg-page);
+  border: 1px solid var(--border);
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btnComments:hover {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+  background-color: var(--bg-surface-hover);
+  transform: translateY(-1px);
+}
+
+.btnCommentsActive {
+  color: var(--brand-primary);
+  border-color: rgba(249, 115, 22, 0.4);
+  background-color: var(--brand-primary-light);
+}
+
+.commentCountBadge {
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Action buttons */
+.topActions {
+  position: relative;
+}
+
+.btnAction {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 3px;
+  border-radius: var(--radius-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.btnAction:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-surface-hover);
+}
+
+.btnAdvance {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background-color: var(--bg-page);
+  border: 1px solid var(--border);
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btnAdvance:hover {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+  background-color: var(--bg-surface-hover);
+  transform: translateY(-1px);
+}
+
+@keyframes menuDrop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.menuDropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 4px;
+  z-index: 50;
+  min-width: 130px;
+  display: flex;
+  flex-direction: column;
+  animation: menuDrop 140ms var(--ease-out);
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition-fast);
+}
+
+.menuItem:hover {
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.menuItemDelete {
+  color: #ef4444;
+}
+
+.menuItemDelete:hover {
+  background-color: var(--tag-rose-bg);
+  color: var(--status-failed);
+}
+
+.lockedBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  opacity: 0.55;
+  cursor: default;
+}
+

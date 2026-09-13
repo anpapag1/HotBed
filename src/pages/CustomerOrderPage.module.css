@@ -1,0 +1,100 @@
+.pageContainer {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-page);
+  position: relative;
+}
+
+.centerNotice {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  text-align: center;
+  gap: 16px;
+}
+
+.noticeCard {
+  max-width: 480px;
+  width: 100%;
+  background-color: var(--bg-surface-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-xl);
+  padding: 40px 32px;
+  box-shadow: var(--shadow-xl);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.iconWrap {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-lg);
+  background-color: var(--col-bg-failed);
+  border: 1px solid var(--col-border-failed);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.noticeTitle {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+}
+
+.noticeText {
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.codeHighlight {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--brand-primary);
+  background: var(--brand-primary-light);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+}
+
+.btnReturn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: var(--radius-md);
+  background: var(--brand-gradient);
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  box-shadow: 0 4px 14px -2px rgba(234, 88, 12, 0.4);
+  transition: all var(--transition-fast);
+}
+
+.btnReturn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px -2px rgba(234, 88, 12, 0.5);
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--brand-primary);
+  border-radius: 50%;
+  animation: spin 0.75s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+  box-shadow: var(--glow-amber);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

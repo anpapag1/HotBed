@@ -1,0 +1,303 @@
+.header {
+  height: 64px;
+  background-color: var(--bg-surface-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border-glass);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.brandLink {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+}
+
+.logoWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.logoImg {
+  height: 32px;
+  width: auto;
+  display: block;
+}
+
+.brandName {
+  font-size: 1.25rem;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brandSubtitle {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-primary-light);
+  color: var(--brand-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 1px solid rgba(234, 88, 12, 0.2);
+}
+
+.navRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.orderBadge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 5px 14px;
+  font-size: 0.85rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-xs);
+}
+
+.codeDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--brand-primary);
+  box-shadow: var(--glow-amber);
+}
+
+.customerName {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+
+.themeMenuWrapper {
+  position: relative;
+}
+
+.iconButton {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background-color: var(--bg-surface);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: all var(--transition-fast);
+  box-sizing: border-box;
+}
+
+.iconButton:hover {
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+}
+
+.iconButtonActive {
+  border-color: var(--brand-primary) !important;
+  color: var(--brand-primary) !important;
+  background-color: var(--bg-surface-hover);
+}
+
+.themeDropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  box-shadow: var(--shadow-lg);
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 100;
+  animation: fadeIn 120ms ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.themeOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition-fast);
+}
+
+.themeOption:hover {
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.themeOptionActive {
+  color: var(--brand-primary) !important;
+  font-weight: 700;
+  background-color: var(--brand-primary-light);
+}
+
+.checkIcon {
+  margin-left: auto;
+  color: var(--brand-primary);
+}
+
+.adminBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  background-color: var(--bg-surface);
+  box-shadow: var(--shadow-xs);
+  transition: all var(--transition-fast);
+  text-decoration: none;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.adminBtn:hover {
+  background-color: var(--bg-surface-hover);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.adminBtnActive {
+  background-color: var(--brand-primary-light);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+}
+
+.logoutBtn {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background-color: var(--bg-surface);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: all var(--transition-fast);
+  box-sizing: border-box;
+}
+
+.logoutBtn:hover {
+  background-color: var(--tag-rose-bg);
+  border-color: var(--status-failed);
+  color: var(--status-failed);
+}
+
+@media (max-width: 768px) {
+  .adminBtn span {
+    display: none;
+  }
+  .adminBtn {
+    width: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .header {
+    padding: 0 16px;
+  }
+  .customerName {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    height: 58px;
+    padding: 0 12px;
+  }
+
+  .brandLink {
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .logoImg {
+    height: 28px;
+  }
+
+  .brandName {
+    font-size: 1.05rem;
+  }
+
+  .brandSubtitle {
+    display: none;
+  }
+
+  .navRight {
+    gap: 6px;
+  }
+
+  .orderBadge {
+    max-width: 132px;
+    overflow: hidden;
+    padding: 5px 9px;
+    font-size: 0.72rem;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .iconButton,
+  .logoutBtn,
+  .adminBtn {
+    width: 34px;
+    height: 34px;
+  }
+}
+
