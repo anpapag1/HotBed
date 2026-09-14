@@ -108,6 +108,12 @@
   flex: 1;
   min-height: 0;
   background-color: transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.content::-webkit-scrollbar {
+  display: none;
 }
 
 .emptyState {
@@ -149,7 +155,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   transition: color var(--transition-fast);
 }
 
@@ -171,7 +177,4 @@
   }
 }
 
-.collapsed:hover .verticalText {
-  color: var(--text-primary);
-}
 
