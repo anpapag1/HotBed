@@ -76,7 +76,7 @@ export function LandingPage() {
                 <input
                   type="text"
                   className={styles.codeInput}
-                  placeholder="HB7890"
+                  placeholder="Order code"
                   maxLength={10}
                   value={orderCode}
                   onChange={(e) => {
