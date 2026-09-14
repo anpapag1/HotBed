@@ -74,6 +74,19 @@
   gap: 10px;
 }
 
+.connectionPill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--tag-rose-bg);
+  border: 1px solid var(--tag-rose-border);
+  border-radius: var(--radius-full);
+  padding: 5px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--tag-rose-text);
+}
+
 .orderBadge {
   display: flex;
   align-items: center;
@@ -304,6 +317,15 @@
     font-size: 0.72rem;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+
+  .connectionPill span {
+    display: none;
+  }
+
+  .connectionPill {
+    padding: 5px;
+    border-radius: 50%;
   }
 
   .iconButton,

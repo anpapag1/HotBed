@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Sun, Moon, Laptop, Check, LogOut, LayoutGrid } from 'lucide-react';
+import { Sun, Moon, Laptop, Check, LogOut, LayoutGrid, WifiOff } from 'lucide-react';
 import { useTheme, type ThemeMode } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { isSupabaseConfigured } from '../../lib/supabase';
 import styles from './Header.module.css';
 
 interface HeaderProps {
@@ -54,6 +55,13 @@ export function Header({ orderCode, customerName, isAdminArea }: HeaderProps) {
       </Link>
 
       <div className={styles.navRight}>
+        {!isSupabaseConfigured && (
+          <div className={styles.connectionPill} title="Can't reach the database right now. Please try again later.">
+            <WifiOff size={14} />
+            <span>The DB is not available</span>
+          </div>
+        )}
+
         {orderCode && (
           <div className={styles.orderBadge} title={customerName ? `Order for ${customerName}` : undefined}>
             <span className={styles.codeDot}></span>

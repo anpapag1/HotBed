@@ -13,35 +13,17 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Demo admin for local mode
-const DEMO_ADMIN_USER: User = {
-  id: 'demo-admin-id',
-  app_metadata: {},
-  user_metadata: {},
-  aud: 'authenticated',
-  created_at: new Date().toISOString(),
-  email: 'admin@hotbed.local',
-};
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    if (!isSupabaseConfigured) {
-      const demoAuth = localStorage.getItem('hotbed_demo_admin_auth');
-      return demoAuth === 'true' ? DEMO_ADMIN_USER : null;
-    }
-    return null;
-  });
-  const [loading, setLoading] = useState(() => isSupabaseConfigured);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(isSupabaseConfigured);
 
   useEffect(() => {
     if (isSupabaseConfigured && supabase) {
-      // Get initial session
       supabase.auth.getSession().then(({ data: { session } }) => {
         setUser(session?.user ?? null);
         setLoading(false);
       });
 
-      // Listen for auth state changes
       const {
         data: { subscription },
       } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -54,29 +36,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string): Promise<{ error: Error | null }> => {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      return { error: error ? new Error(error.message) : null };
+    if (!isSupabaseConfigured || !supabase) {
+      return { error: new Error('Supabase is not connected') };
     }
 
-    // Demo admin login (allows simple password or any email for testing)
-    if (password.length >= 4) {
-      localStorage.setItem('hotbed_demo_admin_auth', 'true');
-      setUser({ ...DEMO_ADMIN_USER, email });
-      return { error: null };
-    }
-
-    return { error: new Error('Invalid credentials (minimum 4 characters in demo mode)') };
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    return { error: error ? new Error(error.message) : null };
   };
 
   const signOut = async () => {
     if (isSupabaseConfigured && supabase) {
       await supabase.auth.signOut();
-    } else {
-      localStorage.removeItem('hotbed_demo_admin_auth');
     }
     setUser(null);
   };
