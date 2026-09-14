@@ -170,7 +170,7 @@ export function PrintCard({
   const dndStyle = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.35 : 1,
+    opacity: isDragging ? 0 : 1,
   };
 
   return (
@@ -179,7 +179,7 @@ export function PrintCard({
       style={!isOverlay ? dndStyle : undefined}
       {...(isDraggable ? attributes : {})}
       {...(isDraggable ? listeners : {})}
-      className={`${styles.card} ${isOverlay ? styles.overlayCard : ''} ${isDraggable ? styles.draggableCard : ''}`}
+      className={`${styles.card} ${isOverlay ? styles.overlayCard : ''} ${isDraggable ? styles.draggableCard : ''} ${isDragging ? styles.draggingCard : ''}`}
     >
       {/* Top Row: Title + Actions */}
       <div className={styles.cardHeader}>

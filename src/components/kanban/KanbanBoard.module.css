@@ -104,7 +104,7 @@
   display: flex;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
   gap: 16px;
   align-items: stretch;
@@ -121,6 +121,12 @@
   padding-bottom: 8px;
   padding-right: 68px;
   align-items: stretch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.boardGrid::-webkit-scrollbar {
+  display: none;
 }
 
 .customerScroll {

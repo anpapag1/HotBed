@@ -14,6 +14,7 @@ interface KanbanColumnProps {
   items: PrintItem[];
   readOnly?: boolean;
   isAdmin?: boolean;
+  isOver?: boolean;
   onEdit?: (item: PrintItem) => void;
   onDelete?: (id: string) => void;
   onDuplicate?: (item: PrintItem) => void;
@@ -27,6 +28,7 @@ export function KanbanColumn({
   items,
   readOnly = false,
   isAdmin = false,
+  isOver = false,
   onEdit,
   onDelete,
   onDuplicate,
@@ -34,7 +36,7 @@ export function KanbanColumn({
   onAddClick,
   onOpenComments,
 }: KanbanColumnProps) {
-  const { setNodeRef, isOver } = useDroppable({
+  const { setNodeRef } = useDroppable({
     id: status,
     disabled: readOnly || !isAdmin,
   });
@@ -46,7 +48,7 @@ export function KanbanColumn({
       ref={setNodeRef}
       className={`${styles.column} ${isOver ? styles.columnOver : ''}`}
       style={{
-        backgroundImage: isOver ? undefined : getStatusGradient(status),
+        backgroundImage: getStatusGradient(status),
       }}
     >
       {/* Column Header */}

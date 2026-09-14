@@ -13,6 +13,7 @@ interface DeliveredSidebarProps {
   items: PrintItem[];
   readOnly?: boolean;
   isAdmin?: boolean;
+  isOver?: boolean;
   onEdit?: (item: PrintItem) => void;
   onDelete?: (id: string) => void;
   onDuplicate?: (item: PrintItem) => void;
@@ -24,6 +25,7 @@ export function DeliveredSidebar({
   items,
   readOnly = false,
   isAdmin = false,
+  isOver = false,
   onEdit,
   onDelete,
   onDuplicate,
@@ -32,7 +34,7 @@ export function DeliveredSidebar({
 }: DeliveredSidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const { setNodeRef, isOver } = useDroppable({
+  const { setNodeRef } = useDroppable({
     id: 'Delivered',
     disabled: readOnly || !isAdmin,
   });

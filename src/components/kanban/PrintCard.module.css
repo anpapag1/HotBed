@@ -30,6 +30,14 @@
   box-shadow: var(--shadow-card-hover);
 }
 
+/* The actively dragged card remounts into a new column's DOM subtree each
+   time it crosses into a different status. Skip the entrance animation for
+   it so that doesn't read as a flicker/fade-flash mid-drag. */
+.draggingCard {
+  animation: none;
+  transition: none;
+}
+
 .draggableCard {
   cursor: grab;
 }
@@ -38,12 +46,28 @@
   cursor: grabbing;
 }
 
+/* A brief playful bounce right as the card is picked up. It settles back to
+   the card's normal scale/rotation so it still looks like itself for the
+   rest of the drag -- just the moment of lift-off gets some personality. */
+@keyframes cardPickup {
+  0% {
+    transform: scale(1) rotate(0deg);
+    box-shadow: var(--shadow-card);
+  }
+  50% {
+    transform: scale(1.08) rotate(-2.5deg);
+    box-shadow: var(--shadow-xl);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    box-shadow: var(--shadow-xl);
+  }
+}
+
 .overlayCard {
-  box-shadow: var(--shadow-xl) !important;
-  transform: scale(1.03) rotate(1deg);
-  border-color: var(--brand-primary) !important;
   cursor: grabbing !important;
   z-index: 999;
+  animation: cardPickup 320ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 /* Header */

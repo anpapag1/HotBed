@@ -1,16 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
-  KeyboardSensor,
+  pointerWithin,
+  rectIntersection,
+  closestCenter,
+  getFirstCollision,
   PointerSensor,
   useSensor,
   useSensors,
+  type CollisionDetection,
+  type DropAnimation,
   type DragStartEvent,
+  type DragOverEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { sortableKeyboardCoordinates, arrayMove } from '@dnd-kit/sortable';
+import { arrayMove } from '@dnd-kit/sortable';
 import { Search, Plus } from 'lucide-react';
 import { type PrintItem, type PrintStatus, BOARD_COLUMNS } from '../../types/database';
 import { KanbanColumn } from './KanbanColumn';
@@ -65,17 +70,31 @@ export function KanbanBoard({
   const [editingItem, setEditingItem] = useState<PrintItem | null>(null);
   const [targetStatus, setTargetStatus] = useState<PrintStatus>('Not Started');
 
+  // Local mirror of `items` used while a drag is in progress, so a card can be
+  // moved live into another column's list (same feel as same-column reordering)
+  // instead of only snapping into place on drop. Kept in sync with the prop
+  // whenever no drag is active.
+  const [boardItems, setBoardItems] = useState<PrintItem[]>(items);
+  useEffect(() => {
+    if (!activeItem) setBoardItems(items);
+  }, [items, activeItem]);
+
+  // Tracks the last hover target handled during a drag so handleDragOver only
+  // reorders on an actual boundary crossing, not on every pointer-move tick
+  // (dnd-kit re-fires dragOver continuously while hovering the same target).
+  const lastOverIdRef = useRef<string | null>(null);
+
+  // Which column/sidebar is the current drop target, for highlighting.
+  const [overContainer, setOverContainer] = useState<PrintStatus | null>(null);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
     })
   );
 
   // Filter items based on search
-  const filteredItems = items.filter((item) => {
+  const filteredItems = boardItems.filter((item) => {
     return (
       searchQuery === '' ||
       item.perigrafi.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -88,51 +107,155 @@ export function KanbanBoard({
   // Both Admin and Customer use BOARD_COLUMNS in the main panel, with Delivered always in the right sidebar
   const columnsToRender = BOARD_COLUMNS;
 
+  const ALL_COLUMNS: string[] = [...BOARD_COLUMNS, 'Delivered'];
+
+  // A little spring on release instead of dnd-kit's generic linear-ish
+  // default -- the card settles into place with a slight overshoot. No
+  // opacity/style side effects: it should still look like itself, just
+  // land with some personality.
+  const dropAnimation: DropAnimation = {
+    duration: 280,
+    easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+  };
+
+  // Every card is itself a droppable (via useSortable), nested inside its
+  // column's droppable. Plain pointer/rect hit-testing flips the "over"
+  // target back and forth between the column and whatever card edge the
+  // cursor happens to cross, which is what made the hover highlight (and
+  // the reorder target) look inconsistent depending on exact cursor height.
+  // This mirrors dnd-kit's own multi-container recipe: resolve to a single
+  // stable id per hover -- if the pointer lands on a container that still
+  // has cards in it, refine to the nearest card inside that same container
+  // instead of trusting whichever nested rect happened to win -- and stick
+  // with the last known target if the pointer briefly matches nothing.
+  const lastCollisionIdRef = useRef<string | null>(null);
+  const collisionDetection: CollisionDetection = (args) => {
+    const pointerCollisions = pointerWithin(args);
+    const intersections = pointerCollisions.length > 0 ? pointerCollisions : rectIntersection(args);
+    let overId = getFirstCollision(intersections, 'id');
+
+    if (overId != null) {
+      if (ALL_COLUMNS.includes(overId as string)) {
+        const containerItemIds = new Set(
+          boardItems.filter((i) => i.status === overId).map((i) => i.id)
+        );
+        if (containerItemIds.size > 0) {
+          const refined = closestCenter({
+            ...args,
+            droppableContainers: args.droppableContainers.filter((c) =>
+              containerItemIds.has(c.id as string)
+            ),
+          });
+          overId = getFirstCollision(refined, 'id') ?? overId;
+        }
+      }
+      lastCollisionIdRef.current = overId as string;
+      return [{ id: overId }];
+    }
+
+    return lastCollisionIdRef.current ? [{ id: lastCollisionIdRef.current }] : [];
+  };
+
+  // Resolve which column an id belongs to: either a card's own status, or,
+  // if the id is a column/sidebar container itself, that column's status.
+  const findContainer = (id: string): PrintStatus | undefined => {
+    const item = boardItems.find((i) => i.id === id);
+    if (item) return item.status;
+    return ALL_COLUMNS.includes(id) ? (id as PrintStatus) : undefined;
+  };
+
   const handleDragStart = (event: DragStartEvent) => {
     if (readOnly || !isAdmin) return;
     const { active } = event;
-    const found = items.find((i) => i.id === active.id);
+    const found = boardItems.find((i) => i.id === active.id);
     if (found) setActiveItem(found);
+    lastOverIdRef.current = null;
+    setOverContainer(found ? found.status : null);
+  };
+
+  // Live-move the dragged card into whichever column it's currently hovering
+  // over, mirroring how same-column drag already re-sorts as you move.
+  const handleDragOver = (event: DragOverEvent) => {
+    if (readOnly || !isAdmin) return;
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    // Drive the column highlight from the resolved container, not each
+    // column's own useDroppable().isOver -- that only lights up while the
+    // pointer sits in a gap, since hovering a card resolves `over` to the
+    // card itself, not the column. This keeps the highlight lit across the
+    // whole column regardless of exact cursor height.
+    const overContainerNow = activeId === overId ? findContainer(activeId) : findContainer(overId);
+    setOverContainer((prev) => (overContainerNow && overContainerNow !== prev ? overContainerNow : prev));
+
+    if (activeId === overId) return;
+    // Same target as last tick: nothing to do. Without this guard, dnd-kit's
+    // continuous dragOver firing would rebuild the array (and remount the
+    // card) dozens of times a second, which is what caused the flicker.
+    if (overId === lastOverIdRef.current) return;
+
+    const activeContainer = findContainer(activeId);
+    const overContainer = findContainer(overId);
+    if (!activeContainer || !overContainer || activeContainer === overContainer) return;
+
+    lastOverIdRef.current = overId;
+
+    setBoardItems((prev) => {
+      const activeIndex = prev.findIndex((i) => i.id === activeId);
+      if (activeIndex === -1) return prev;
+
+      const next = [...prev];
+      const [moved] = next.splice(activeIndex, 1);
+      const updated: PrintItem = { ...moved, status: overContainer };
+
+      const overIndex = next.findIndex((i) => i.id === overId);
+      if (overIndex === -1) {
+        // Dropped on the column/sidebar container itself (empty area)
+        next.push(updated);
+      } else {
+        next.splice(overIndex, 0, updated);
+      }
+      return next;
+    });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     if (readOnly || !isAdmin) return;
     const { active, over } = event;
-    setActiveItem(null);
-    if (!over) return;
-
     const activeId = active.id as string;
+    const originalItem = items.find((i) => i.id === activeId);
+    setActiveItem(null);
+    lastOverIdRef.current = null;
+    setOverContainer(null);
+
+    if (!over || !originalItem) return;
+
     const overId = over.id as string;
-    const activeItemObj = items.find((i) => i.id === activeId);
-    if (!activeItemObj) return;
+    const droppedOnCard = activeId !== overId && !ALL_COLUMNS.includes(overId);
 
-    const ALL_COLUMNS: string[] = [...BOARD_COLUMNS, 'Delivered'];
-    const isOverColumn = ALL_COLUMNS.includes(overId);
-
-    // Dropped on a column container or Delivered sidebar
-    if (isOverColumn) {
-      if (activeItemObj.status !== overId && onUpdateStatus) {
-        onUpdateStatus(activeId, overId as PrintStatus);
+    // boardItems already reflects the live column/position from handleDragOver.
+    // If dropped directly on another card, refine the exact insertion index.
+    let finalItems = boardItems;
+    if (droppedOnCard) {
+      const oldIndex = boardItems.findIndex((i) => i.id === activeId);
+      const newIndex = boardItems.findIndex((i) => i.id === overId);
+      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+        finalItems = arrayMove(boardItems, oldIndex, newIndex);
+        setBoardItems(finalItems);
       }
-      return;
     }
 
-    // Dropped over another card
-    if (activeId !== overId) {
-      const oldIndex = items.findIndex((i) => i.id === activeId);
-      const newIndex = items.findIndex((i) => i.id === overId);
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const targetCard = items[newIndex];
-        if (activeItemObj.status !== targetCard.status) {
-          if (onUpdateStatus) {
-            onUpdateStatus(activeId, targetCard.status);
-          }
-        }
-        const newItems = arrayMove(items, oldIndex, newIndex);
-        if (onReorder) {
-          onReorder(newItems);
-        }
-      }
+    const finalItem = finalItems.find((i) => i.id === activeId);
+    if (!finalItem) return;
+
+    if (finalItem.status !== originalItem.status && onUpdateStatus) {
+      onUpdateStatus(activeId, finalItem.status);
+    }
+    if (onReorder) {
+      onReorder(finalItems);
     }
   };
 
@@ -231,8 +354,9 @@ export function KanbanBoard({
       {/* Board Body with Horizontal Columns & Delivered Drawer wrapped in DndContext */}
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={collisionDetection}
         onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
         <div className={styles.boardBody}>
@@ -244,6 +368,7 @@ export function KanbanBoard({
                 items={filteredItems.filter((i) => i.status === status)}
                 readOnly={readOnly}
                 isAdmin={isAdmin}
+                isOver={overContainer === status}
                 onEdit={handleEditClick}
                 onDelete={onDeletePrint}
                 onDuplicate={handleDuplicateClick}
@@ -259,6 +384,7 @@ export function KanbanBoard({
             items={deliveredItems}
             readOnly={readOnly}
             isAdmin={isAdmin}
+            isOver={overContainer === 'Delivered'}
             onEdit={handleEditClick}
             onDelete={onDeletePrint}
             onDuplicate={handleDuplicateClick}
@@ -267,8 +393,19 @@ export function KanbanBoard({
           />
         </div>
 
-        <DragOverlay>
-          {activeItem ? <PrintCard item={activeItem} isOverlay readOnly /> : null}
+        <DragOverlay dropAnimation={dropAnimation}>
+          {activeItem ? (
+            <PrintCard
+              item={activeItem}
+              isOverlay
+              isAdmin={isAdmin}
+              onEdit={handleEditClick}
+              onDelete={onDeletePrint}
+              onDuplicate={handleDuplicateClick}
+              onChangeStatus={isAdmin ? onUpdateStatus : undefined}
+              onOpenComments={(item) => setActiveCommentItem(item)}
+            />
+          ) : null}
         </DragOverlay>
       </DndContext>
 
