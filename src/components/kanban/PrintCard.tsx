@@ -16,26 +16,21 @@ import {
   X,
   MessageSquare,
 } from 'lucide-react';
-import type { PrintItem, PrintStatus } from '../../types/database';
+import type { PrintItem, PrintStatus, ItemComment, ItemSubtask } from '../../types/database';
 import {
   parseColors,
   getFilamentStyle,
   extractUrls,
   getCommentAlerts,
 } from '../../utils/statusConfig';
-import {
-  getItemSubtasks,
-  addSubtask,
-  toggleSubtask,
-  deleteSubtask,
-  SUBTASK_PRESETS,
-  type SubTask,
-} from '../../utils/subtaskService';
-import { getItemCommentCount, hasUnreadComments } from '../../utils/commentService';
+import { SUBTASK_PRESETS } from '../../utils/subtaskService';
+import { hasUnreadComments } from '../../utils/commentService';
 import styles from './PrintCard.module.css';
 
 interface PrintCardProps {
   item: PrintItem;
+  threadComments?: ItemComment[];
+  subtasks?: ItemSubtask[];
   readOnly?: boolean;
   isAdmin?: boolean;
   onEdit?: (item: PrintItem) => void;
@@ -43,11 +38,16 @@ interface PrintCardProps {
   onDuplicate?: (item: PrintItem) => void;
   onChangeStatus?: (id: string, newStatus: PrintStatus) => void;
   onOpenComments?: (item: PrintItem) => void;
+  onAddSubtask?: (printId: string, title: string) => void;
+  onToggleSubtask?: (subtaskId: string, completed: boolean) => void;
+  onDeleteSubtask?: (subtaskId: string) => void;
   isOverlay?: boolean;
 }
 
 export function PrintCard({
   item,
+  threadComments = [],
+  subtasks = [],
   readOnly = false,
   isAdmin = false,
   onEdit,
@@ -55,59 +55,34 @@ export function PrintCard({
   onDuplicate,
   onChangeStatus,
   onOpenComments,
+  onAddSubtask,
+  onToggleSubtask,
+  onDeleteSubtask,
   isOverlay = false,
 }: PrintCardProps) {
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const actionMenuRef = useRef<HTMLDivElement>(null);
 
-  // Dynamic subtasks (empty by default, user adds whenever they want)
-  const [subtasks, setSubtasks] = useState<SubTask[]>(() => getItemSubtasks(item.id));
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const [newSubtaskText, setNewSubtaskText] = useState('');
 
-  // Comment count synced in real time
-  const [commentCount, setCommentCount] = useState<number>(() =>
-    getItemCommentCount(item.id, item.comments)
-  );
+  const commentCount = threadComments.length;
   const viewerRole = isAdmin ? 'admin' : 'customer';
-  const [hasUnread, setHasUnread] = useState<boolean>(() =>
-    hasUnreadComments(item.id, viewerRole, item.comments)
-  );
+  const hasUnread = hasUnreadComments(item.id, viewerRole, threadComments);
 
-  // Sync subtasks if modified elsewhere
+  // localStorage read-state changes elsewhere (e.g. opening the drawer) don't
+  // themselves trigger a re-render here, so force one via a tick on the event.
+  const [, forceReadTick] = useState(0);
   useEffect(() => {
-    const handleSync = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail && detail.itemId === item.id) {
-        setSubtasks(detail.subtasks);
-      }
-    };
-    window.addEventListener('subtasks-updated', handleSync);
-    return () => window.removeEventListener('subtasks-updated', handleSync);
-  }, [item.id]);
-
-  // Sync comments count + unread state if modified elsewhere
-  useEffect(() => {
-    const handleCommentsSync = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail && detail.itemId === item.id) {
-        setCommentCount(detail.count);
-        setHasUnread(hasUnreadComments(item.id, viewerRole, item.comments));
-      }
-    };
     const handleCommentsRead = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail && detail.itemId === item.id && detail.role === viewerRole) {
-        setHasUnread(false);
+        forceReadTick((t) => t + 1);
       }
     };
-    window.addEventListener('comments-updated', handleCommentsSync);
     window.addEventListener('comments-read', handleCommentsRead);
-    return () => {
-      window.removeEventListener('comments-updated', handleCommentsSync);
-      window.removeEventListener('comments-read', handleCommentsRead);
-    };
-  }, [item.id, item.comments, viewerRole]);
+    return () => window.removeEventListener('comments-read', handleCommentsRead);
+  }, [item.id, viewerRole]);
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -119,25 +94,21 @@ export function PrintCard({
     return () => document.removeEventListener('mousedown', handleOutside);
   }, []);
 
-  const handleToggleSubtask = (stId: string) => {
-    toggleSubtask(item.id, stId);
-    setSubtasks(getItemSubtasks(item.id));
+  const handleToggleSubtask = (st: ItemSubtask) => {
+    onToggleSubtask?.(st.id, !st.completed);
   };
 
   const handleDeleteSubtask = (stId: string) => {
-    deleteSubtask(item.id, stId);
-    setSubtasks(getItemSubtasks(item.id));
+    onDeleteSubtask?.(stId);
   };
 
   const handleAddPreset = (presetTitle: string) => {
-    addSubtask(item.id, presetTitle);
-    setSubtasks(getItemSubtasks(item.id));
+    onAddSubtask?.(item.id, presetTitle);
   };
 
   const handleCreateCustom = () => {
     if (!newSubtaskText.trim()) return;
-    addSubtask(item.id, newSubtaskText.trim());
-    setSubtasks(getItemSubtasks(item.id));
+    onAddSubtask?.(item.id, newSubtaskText.trim());
     setNewSubtaskText('');
   };
 
@@ -328,7 +299,7 @@ export function PrintCard({
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (canManageSubtasks) handleToggleSubtask(st.id);
+                      if (canManageSubtasks) handleToggleSubtask(st);
                     }}
                   >
                     {st.completed ? (

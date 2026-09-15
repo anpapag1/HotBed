@@ -4,7 +4,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { Plus } from 'lucide-react';
-import type { PrintItem, PrintStatus } from '../../types/database';
+import type { PrintItem, PrintStatus, ItemComment, ItemSubtask } from '../../types/database';
 import { getStatusConfig, getStatusGradient } from '../../utils/statusConfig';
 import { PrintCard } from './PrintCard';
 import styles from './KanbanColumn.module.css';
@@ -12,6 +12,8 @@ import styles from './KanbanColumn.module.css';
 interface KanbanColumnProps {
   status: PrintStatus;
   items: PrintItem[];
+  comments?: ItemComment[];
+  subtasks?: ItemSubtask[];
   readOnly?: boolean;
   isAdmin?: boolean;
   isOver?: boolean;
@@ -21,11 +23,16 @@ interface KanbanColumnProps {
   onChangeStatus?: (id: string, newStatus: PrintStatus) => void;
   onAddClick?: (status: PrintStatus) => void;
   onOpenComments?: (item: PrintItem) => void;
+  onAddSubtask?: (printId: string, title: string) => void;
+  onToggleSubtask?: (subtaskId: string, completed: boolean) => void;
+  onDeleteSubtask?: (subtaskId: string) => void;
 }
 
 export function KanbanColumn({
   status,
   items,
+  comments = [],
+  subtasks = [],
   readOnly = false,
   isAdmin = false,
   isOver = false,
@@ -35,6 +42,9 @@ export function KanbanColumn({
   onChangeStatus,
   onAddClick,
   onOpenComments,
+  onAddSubtask,
+  onToggleSubtask,
+  onDeleteSubtask,
 }: KanbanColumnProps) {
   const { setNodeRef } = useDroppable({
     id: status,
@@ -89,6 +99,8 @@ export function KanbanColumn({
               <PrintCard
                 key={item.id}
                 item={item}
+                threadComments={comments.filter((c) => c.print_id === item.id)}
+                subtasks={subtasks.filter((s) => s.print_id === item.id)}
                 readOnly={!canEdit}
                 isAdmin={isAdmin}
                 onEdit={canEdit ? onEdit : undefined}
@@ -96,6 +108,9 @@ export function KanbanColumn({
                 onDuplicate={canEdit ? onDuplicate : undefined}
                 onChangeStatus={isAdmin ? onChangeStatus : undefined}
                 onOpenComments={onOpenComments}
+                onAddSubtask={onAddSubtask}
+                onToggleSubtask={onToggleSubtask}
+                onDeleteSubtask={onDeleteSubtask}
               />
             );
           })}

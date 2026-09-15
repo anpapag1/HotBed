@@ -51,3 +51,23 @@ export interface OrderSummary {
   hasActive: boolean;
 }
 
+export interface ItemComment {
+  id: string;
+  print_id: string;
+  order_id: string;
+  author_role: 'admin' | 'customer';
+  author_name: string;
+  content: string;
+  created_at: string;
+}
+
+export interface ItemSubtask {
+  id: string;
+  print_id: string;
+  order_id: string;
+  title: string;
+  completed: boolean;
+  position: number;
+  created_at: string;
+}
+

@@ -174,6 +174,7 @@ export function AdminOrderBoardPage() {
       <KanbanBoard
         items={prints}
         orderId={order.id}
+        orderCode={order.order_code}
         customerName={order.customer_name}
         readOnly={false}
         isAdmin={true}
