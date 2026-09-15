@@ -29,6 +29,7 @@ import {
   subscribeToSubtasksForOrder,
   addSubtaskToPrint,
   toggleSubtaskCompletion,
+  updateSubtaskTitle,
   deleteSubtaskFromPrint,
 } from '../../services/orderService';
 import { KanbanColumn } from './KanbanColumn';
@@ -161,6 +162,17 @@ export function KanbanBoard({
       await toggleSubtaskCompletion(subtaskId, completed);
     } catch (err) {
       console.error('Failed to toggle subtask:', err);
+    }
+  };
+
+  const handleUpdateSubtaskTitle = async (subtaskId: string, title: string) => {
+    setSubtasks((prev) =>
+      prev.map((s) => (s.id === subtaskId ? { ...s, title } : s))
+    );
+    try {
+      await updateSubtaskTitle(subtaskId, title);
+    } catch (err) {
+      console.error('Failed to rename subtask:', err);
     }
   };
 
@@ -482,6 +494,7 @@ export function KanbanBoard({
                 onOpenComments={(item) => setActiveCommentItem(item)}
                 onAddSubtask={handleAddSubtask}
                 onToggleSubtask={handleToggleSubtask}
+                onUpdateSubtaskTitle={handleUpdateSubtaskTitle}
                 onDeleteSubtask={handleDeleteSubtask}
               />
             ))}
@@ -502,6 +515,7 @@ export function KanbanBoard({
             onOpenComments={(item) => setActiveCommentItem(item)}
             onAddSubtask={handleAddSubtask}
             onToggleSubtask={handleToggleSubtask}
+            onUpdateSubtaskTitle={handleUpdateSubtaskTitle}
             onDeleteSubtask={handleDeleteSubtask}
           />
         </div>
