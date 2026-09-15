@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -11,7 +11,8 @@ import {
   Edit2,
   Check,
   X,
-  Upload
+  Upload,
+  Bell,
 } from 'lucide-react';
 import {
   fetchAllOrdersWithSummaries,
@@ -22,6 +23,7 @@ import {
 } from '../services/orderService';
 import type { OrderSummary, PrintStatus } from '../types/database';
 import { Header } from '../components/common/Header';
+import { hasAnyUnreadComments } from '../utils/commentService';
 import styles from './AdminOrdersPage.module.css';
 
 export function AdminOrdersPage() {
@@ -36,7 +38,28 @@ export function AdminOrdersPage() {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const [commentsTick, setCommentsTick] = useState(0);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const bump = () => setCommentsTick((t) => t + 1);
+    window.addEventListener('comments-updated', bump);
+    window.addEventListener('comments-read', bump);
+    return () => {
+      window.removeEventListener('comments-updated', bump);
+      window.removeEventListener('comments-read', bump);
+    };
+  }, []);
+
+  const unreadOrderIds = useMemo(() => {
+    const ids = new Set<string>();
+    summaries.forEach((summary) => {
+      if (hasAnyUnreadComments(summary.prints, 'admin')) {
+        ids.add(summary.order.id);
+      }
+    });
+    return ids;
+  }, [summaries, commentsTick]);
 
   const parseCsv = (csv: string): string[][] => {
     const rows: string[][] = [];
@@ -380,13 +403,21 @@ export function AdminOrdersPage() {
                 month: 'short',
                 day: 'numeric',
               });
+              const hasUnread = unreadOrderIds.has(order.id);
 
               return (
                 <div
                   key={order.id}
-                  className={styles.orderCard}
+                  className={`${styles.orderCard} ${hasUnread ? styles.orderCardUnread : ''}`}
                   onClick={() => navigate(`/admin/order/${order.order_code}`)}
                 >
+                  {hasUnread && (
+                    <span className={styles.orderUnreadBadge} title="Unread comments on this order">
+                      <span className={styles.orderUnreadBadgeRing} />
+                      <Bell size={13} strokeWidth={2.5} />
+                    </span>
+                  )}
+
                   <div className={styles.cardHeader}>
                     <div>
                       <div className={styles.codeBadge}>

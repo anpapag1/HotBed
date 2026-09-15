@@ -243,6 +243,53 @@
   gap: 20px;
 }
 
+@keyframes orderCardUnreadGlow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.5), var(--shadow-card); }
+  50% { box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.9), 0 0 16px 2px rgba(239, 68, 68, 0.3), var(--shadow-card); }
+}
+
+.orderCardUnread {
+  border-color: #ef4444;
+  animation: orderCardUnreadGlow 2s ease-in-out infinite;
+}
+
+@keyframes badgeBounceIn {
+  0% { transform: scale(0); }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+@keyframes orderBadgeRingPing {
+  0% { transform: scale(1); opacity: 0.75; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+.orderUnreadBadge {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f87171, #dc2626);
+  color: #fff;
+  border: 2px solid var(--bg-page);
+  box-shadow: 0 3px 10px rgba(220, 38, 38, 0.55);
+  z-index: 5;
+  animation: badgeBounceIn 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.orderUnreadBadgeRing {
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 2px solid #ef4444;
+  animation: orderBadgeRingPing 1.6s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+}
+
 .orderCard {
   background-color: var(--bg-surface);
   border: 1px solid var(--border);

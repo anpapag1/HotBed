@@ -7,6 +7,7 @@ import {
   getItemComments,
   addItemComment,
   deleteItemComment,
+  markItemCommentsRead,
   type ItemComment,
 } from '../../utils/commentService';
 import styles from './CommentsDrawer.module.css';
@@ -70,12 +71,13 @@ export function CommentsDrawer({
       const detail = (e as CustomEvent).detail;
       if (detail && detail.itemId === item.id) {
         setComments(detail.comments);
+        if (isOpen) markItemCommentsRead(item.id, currentUserRole);
       }
     };
 
     window.addEventListener('comments-updated', handleSync);
     return () => window.removeEventListener('comments-updated', handleSync);
-  }, [item]);
+  }, [item, isOpen, currentUserRole]);
 
   // Scroll to bottom when new comment arrives or drawer opens
   useEffect(() => {
@@ -90,6 +92,13 @@ export function CommentsDrawer({
       setTimeout(() => textareaRef.current?.focus(), 150);
     }
   }, [isOpen]);
+
+  // Mark the other side's comments read as soon as this item's drawer is open
+  useEffect(() => {
+    if (isOpen && item) {
+      markItemCommentsRead(item.id, currentUserRole);
+    }
+  }, [isOpen, item, currentUserRole]);
 
   if (!isOpen || !item) return null;
 
