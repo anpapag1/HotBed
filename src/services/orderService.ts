@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import type { Order, PrintItem, PrintStatus, OrderSummary } from '../types/database';
+import type { Order, PrintItem, PrintStatus, OrderSummary, ItemComment, ItemSubtask } from '../types/database';
 
 function requireSupabase() {
   if (!isSupabaseConfigured || !supabase) {
@@ -329,6 +329,212 @@ export function subscribeToPrintsForOrder(orderId: string, callback: () => void)
       () => {
         callback();
       }
+    )
+    .subscribe();
+
+  return () => {
+    client.removeChannel(channel);
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Item Comments (threaded chat between admin and customer on a print part)
+// ---------------------------------------------------------------------------
+
+export async function fetchCommentsForOrder(orderId: string): Promise<ItemComment[]> {
+  const client = requireSupabase();
+
+  const { data, error } = await client
+    .from('item_comments')
+    .select('*')
+    .eq('order_id', orderId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching comments:', error);
+    throw error;
+  }
+  return (data || []) as ItemComment[];
+}
+
+export async function fetchAllItemComments(): Promise<ItemComment[]> {
+  const client = requireSupabase();
+
+  const { data, error } = await client
+    .from('item_comments')
+    .select('*')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching all comments:', error);
+    throw error;
+  }
+  return (data || []) as ItemComment[];
+}
+
+export async function addAdminComment(
+  printId: string,
+  orderId: string,
+  content: string,
+  authorName: string
+): Promise<ItemComment> {
+  const client = requireSupabase();
+
+  const { data, error } = await client
+    .from('item_comments')
+    .insert([
+      {
+        print_id: printId,
+        order_id: orderId,
+        author_role: 'admin',
+        author_name: authorName.trim() || 'Workshop Admin',
+        content: content.trim(),
+      },
+    ])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as ItemComment;
+}
+
+export async function addCustomerCommentViaRPC(
+  orderCode: string,
+  printId: string,
+  content: string,
+  authorName: string
+): Promise<ItemComment> {
+  const client = requireSupabase();
+
+  const { data, error } = await client.rpc('add_item_comment', {
+    p_order_code: orderCode.trim().toUpperCase(),
+    p_print_id: printId,
+    p_content: content.trim(),
+    p_author_name: authorName.trim() || 'Customer',
+  });
+
+  if (error) {
+    console.error('RPC add_item_comment error:', error);
+    throw error;
+  }
+  return data as ItemComment;
+}
+
+export async function deleteAdminComment(commentId: string): Promise<void> {
+  const client = requireSupabase();
+  const { error } = await client.from('item_comments').delete().eq('id', commentId);
+  if (error) throw error;
+}
+
+export async function deleteCustomerCommentViaRPC(
+  orderCode: string,
+  commentId: string
+): Promise<void> {
+  const client = requireSupabase();
+
+  const { error } = await client.rpc('delete_item_comment', {
+    p_order_code: orderCode.trim().toUpperCase(),
+    p_comment_id: commentId,
+  });
+
+  if (error) {
+    console.error('RPC delete_item_comment error:', error);
+    throw error;
+  }
+}
+
+export function subscribeToCommentsForOrder(orderId: string, callback: () => void): () => void {
+  const client = requireSupabase();
+
+  const channel = client
+    .channel('item_comments:' + orderId)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'item_comments', filter: 'order_id=eq.' + orderId },
+      () => callback()
+    )
+    .subscribe();
+
+  return () => {
+    client.removeChannel(channel);
+  };
+}
+
+export function subscribeToAllComments(callback: () => void): () => void {
+  const client = requireSupabase();
+
+  const channel = client
+    .channel('item_comments:all')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'item_comments' },
+      () => callback()
+    )
+    .subscribe();
+
+  return () => {
+    client.removeChannel(channel);
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Item Subtasks (workshop checklist per print part, admin-managed)
+// ---------------------------------------------------------------------------
+
+export async function fetchSubtasksForOrder(orderId: string): Promise<ItemSubtask[]> {
+  const client = requireSupabase();
+
+  const { data, error } = await client
+    .from('item_subtasks')
+    .select('*')
+    .eq('order_id', orderId)
+    .order('position', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching subtasks:', error);
+    throw error;
+  }
+  return (data || []) as ItemSubtask[];
+}
+
+export async function addSubtaskToPrint(
+  printId: string,
+  orderId: string,
+  title: string
+): Promise<ItemSubtask> {
+  const client = requireSupabase();
+
+  const { data, error } = await client
+    .from('item_subtasks')
+    .insert([{ print_id: printId, order_id: orderId, title: title.trim(), position: Date.now() }])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as ItemSubtask;
+}
+
+export async function toggleSubtaskCompletion(subtaskId: string, completed: boolean): Promise<void> {
+  const client = requireSupabase();
+  const { error } = await client.from('item_subtasks').update({ completed }).eq('id', subtaskId);
+  if (error) throw error;
+}
+
+export async function deleteSubtaskFromPrint(subtaskId: string): Promise<void> {
+  const client = requireSupabase();
+  const { error } = await client.from('item_subtasks').delete().eq('id', subtaskId);
+  if (error) throw error;
+}
+
+export function subscribeToSubtasksForOrder(orderId: string, callback: () => void): () => void {
+  const client = requireSupabase();
+
+  const channel = client
+    .channel('item_subtasks:' + orderId)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'item_subtasks', filter: 'order_id=eq.' + orderId },
+      () => callback()
     )
     .subscribe();
 

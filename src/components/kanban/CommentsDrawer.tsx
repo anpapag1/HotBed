@@ -1,21 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Send, MessageSquare, Trash2 } from 'lucide-react';
-import type { PrintItem } from '../../types/database';
+import type { PrintItem, ItemComment } from '../../types/database';
 import { getStatusConfig } from '../../utils/statusConfig';
-import {
-  getItemComments,
-  addItemComment,
-  deleteItemComment,
-  markItemCommentsRead,
-  type ItemComment,
-} from '../../utils/commentService';
+import { markItemCommentsRead } from '../../utils/commentService';
 import styles from './CommentsDrawer.module.css';
 
 interface CommentsDrawerProps {
   item: PrintItem | null;
+  comments: ItemComment[];
   isOpen: boolean;
   onClose: () => void;
+  onSend: (printId: string, content: string) => Promise<void>;
+  onDelete: (commentId: string) => Promise<void>;
   isAdmin?: boolean;
   currentUserRole?: 'admin' | 'customer';
   currentUserName?: string;
@@ -47,37 +44,27 @@ function formatCommentTime(isoStr: string): string {
 
 export function CommentsDrawer({
   item,
+  comments,
   isOpen,
   onClose,
+  onSend,
+  onDelete,
   isAdmin = false,
   currentUserRole = isAdmin ? 'admin' : 'customer',
   currentUserName = isAdmin ? 'Workshop Admin' : 'Customer',
 }: CommentsDrawerProps) {
-  const [comments, setComments] = useState<ItemComment[]>([]);
   const [inputText, setInputText] = useState('');
+  const [isSending, setIsSending] = useState(false);
   const feedEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Sync comments for active item
+  // Mark the other side's comments read as soon as this item's drawer is open,
+  // and again whenever a new comment arrives while it's still open.
   useEffect(() => {
-    if (!item) {
-      setComments([]);
-      return;
+    if (isOpen && item) {
+      markItemCommentsRead(item.id, currentUserRole, comments);
     }
-
-    setComments(getItemComments(item.id, item.comments));
-
-    const handleSync = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail && detail.itemId === item.id) {
-        setComments(detail.comments);
-        if (isOpen) markItemCommentsRead(item.id, currentUserRole);
-      }
-    };
-
-    window.addEventListener('comments-updated', handleSync);
-    return () => window.removeEventListener('comments-updated', handleSync);
-  }, [item, isOpen, currentUserRole]);
+  }, [isOpen, item, currentUserRole, comments]);
 
   // Scroll to bottom when new comment arrives or drawer opens
   useEffect(() => {
@@ -93,30 +80,25 @@ export function CommentsDrawer({
     }
   }, [isOpen]);
 
-  // Mark the other side's comments read as soon as this item's drawer is open
-  useEffect(() => {
-    if (isOpen && item) {
-      markItemCommentsRead(item.id, currentUserRole);
-    }
-  }, [isOpen, item, currentUserRole]);
-
   if (!isOpen || !item) return null;
 
   const statusConfig = getStatusConfig(item.status);
 
-  const handleSend = () => {
-    if (!inputText.trim()) return;
+  const handleSend = async () => {
+    const text = inputText.trim();
+    if (!text || !item) return;
 
-    addItemComment(
-      item.id,
-      inputText.trim(),
-      currentUserRole,
-      currentUserName,
-      item.comments
-    );
-
-    setComments(getItemComments(item.id, item.comments));
     setInputText('');
+    setIsSending(true);
+    try {
+      await onSend(item.id, text);
+    } catch (err) {
+      console.error('Failed to send comment:', err);
+      alert('Could not send comment. Please check your network and try again.');
+      setInputText(text);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -126,9 +108,13 @@ export function CommentsDrawer({
     }
   };
 
-  const handleDelete = (commentId: string) => {
-    deleteItemComment(item.id, commentId, item.comments);
-    setComments(getItemComments(item.id, item.comments));
+  const handleDelete = async (commentId: string) => {
+    try {
+      await onDelete(commentId);
+    } catch (err) {
+      console.error('Failed to delete comment:', err);
+      alert('Could not delete comment. Please check your network and try again.');
+    }
   };
 
   return createPortal(
@@ -187,23 +173,23 @@ export function CommentsDrawer({
             </div>
           ) : (
             comments.map((c) => {
-              const canDelete = isAdmin || c.authorRole === currentUserRole;
+              const canDelete = isAdmin || c.author_role === currentUserRole;
               return (
                 <div key={c.id} className={styles.commentCard}>
                   <div className={styles.commentHeader}>
                     <div className={styles.authorGroup}>
-                      <span className={styles.authorName}>{c.authorName}</span>
+                      <span className={styles.authorName}>{c.author_name}</span>
                       <span
                         className={
-                          c.authorRole === 'admin'
+                          c.author_role === 'admin'
                             ? styles.roleBadgeAdmin
                             : styles.roleBadgeCustomer
                         }
                       >
-                        {c.authorRole}
+                        {c.author_role}
                       </span>
                       <span className={styles.timeMeta}>
-                        {formatCommentTime(c.createdAt)}
+                        {formatCommentTime(c.created_at)}
                       </span>
                     </div>
 
@@ -237,10 +223,11 @@ export function CommentsDrawer({
               onKeyDown={handleKeyDown}
               placeholder={`Comment as ${currentUserName}...`}
               className={styles.commentTextarea}
+              disabled={isSending}
             />
             <button
               onClick={handleSend}
-              disabled={!inputText.trim()}
+              disabled={!inputText.trim() || isSending}
               className={styles.btnSend}
               title="Send comment (Enter)"
             >
@@ -257,4 +244,3 @@ export function CommentsDrawer({
     document.body
   );
 }
-

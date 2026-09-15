@@ -20,8 +20,10 @@ import {
   createOrder,
   updateOrder,
   adminInsertPrint,
+  fetchAllItemComments,
+  subscribeToAllComments,
 } from '../services/orderService';
-import type { OrderSummary, PrintStatus } from '../types/database';
+import type { OrderSummary, PrintStatus, ItemComment } from '../types/database';
 import { Header } from '../components/common/Header';
 import { hasAnyUnreadComments } from '../utils/commentService';
 import styles from './AdminOrdersPage.module.css';
@@ -38,28 +40,40 @@ export function AdminOrdersPage() {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
-  const [commentsTick, setCommentsTick] = useState(0);
+  const [allComments, setAllComments] = useState<ItemComment[]>([]);
   const navigate = useNavigate();
 
+  // No CommentsDrawer renders on this list page, so 'comments-read' events
+  // never fire here -- the only thing that changes unread state on this
+  // page is new comment rows arriving over the realtime subscription below.
   useEffect(() => {
-    const bump = () => setCommentsTick((t) => t + 1);
-    window.addEventListener('comments-updated', bump);
-    window.addEventListener('comments-read', bump);
+    let isMounted = true;
+
+    const loadComments = () => {
+      fetchAllItemComments()
+        .then((data) => { if (isMounted) setAllComments(data); })
+        .catch((err) => console.error('Failed to load comments:', err));
+    };
+
+    loadComments();
+    const unsubscribe = subscribeToAllComments(loadComments);
+
     return () => {
-      window.removeEventListener('comments-updated', bump);
-      window.removeEventListener('comments-read', bump);
+      isMounted = false;
+      unsubscribe();
     };
   }, []);
 
   const unreadOrderIds = useMemo(() => {
     const ids = new Set<string>();
     summaries.forEach((summary) => {
-      if (hasAnyUnreadComments(summary.prints, 'admin')) {
+      const printIds = summary.prints.map((p) => p.id);
+      if (hasAnyUnreadComments(allComments, printIds, 'admin')) {
         ids.add(summary.order.id);
       }
     });
     return ids;
-  }, [summaries, commentsTick]);
+  }, [summaries, allComments]);
 
   const parseCsv = (csv: string): string[][] => {
     const rows: string[][] = [];
