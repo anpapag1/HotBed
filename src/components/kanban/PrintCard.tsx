@@ -31,7 +31,7 @@ import {
   SUBTASK_PRESETS,
   type SubTask,
 } from '../../utils/subtaskService';
-import { getItemCommentCount } from '../../utils/commentService';
+import { getItemCommentCount, hasUnreadComments } from '../../utils/commentService';
 import styles from './PrintCard.module.css';
 
 interface PrintCardProps {
@@ -69,6 +69,10 @@ export function PrintCard({
   const [commentCount, setCommentCount] = useState<number>(() =>
     getItemCommentCount(item.id, item.comments)
   );
+  const viewerRole = isAdmin ? 'admin' : 'customer';
+  const [hasUnread, setHasUnread] = useState<boolean>(() =>
+    hasUnreadComments(item.id, viewerRole, item.comments)
+  );
 
   // Sync subtasks if modified elsewhere
   useEffect(() => {
@@ -82,17 +86,28 @@ export function PrintCard({
     return () => window.removeEventListener('subtasks-updated', handleSync);
   }, [item.id]);
 
-  // Sync comments count if modified elsewhere
+  // Sync comments count + unread state if modified elsewhere
   useEffect(() => {
     const handleCommentsSync = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail && detail.itemId === item.id) {
         setCommentCount(detail.count);
+        setHasUnread(hasUnreadComments(item.id, viewerRole, item.comments));
+      }
+    };
+    const handleCommentsRead = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && detail.itemId === item.id && detail.role === viewerRole) {
+        setHasUnread(false);
       }
     };
     window.addEventListener('comments-updated', handleCommentsSync);
-    return () => window.removeEventListener('comments-updated', handleCommentsSync);
-  }, [item.id]);
+    window.addEventListener('comments-read', handleCommentsRead);
+    return () => {
+      window.removeEventListener('comments-updated', handleCommentsSync);
+      window.removeEventListener('comments-read', handleCommentsRead);
+    };
+  }, [item.id, item.comments, viewerRole]);
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -179,8 +194,15 @@ export function PrintCard({
       style={!isOverlay ? dndStyle : undefined}
       {...(isDraggable ? attributes : {})}
       {...(isDraggable ? listeners : {})}
-      className={`${styles.card} ${isOverlay ? styles.overlayCard : ''} ${isDraggable ? styles.draggableCard : ''} ${isDragging ? styles.draggingCard : ''}`}
+      className={`${styles.card} ${isOverlay ? styles.overlayCard : ''} ${isDraggable ? styles.draggableCard : ''} ${isDragging ? styles.draggingCard : ''} ${hasUnread ? styles.cardUnread : ''}`}
     >
+      {hasUnread && (
+        <span className={styles.unreadBadge} title="Unread comments">
+          <span className={styles.unreadBadgeRing} />
+          <MessageSquare size={10} strokeWidth={3} />
+        </span>
+      )}
+
       {/* Top Row: Title + Actions */}
       <div className={styles.cardHeader}>
         <div className={styles.titleArea}>
@@ -479,8 +501,8 @@ export function PrintCard({
                 e.stopPropagation();
                 onOpenComments(item);
               }}
-              className={`${styles.btnComments} ${commentCount > 0 ? styles.btnCommentsActive : ''}`}
-              title={`${commentCount} comment${commentCount === 1 ? '' : 's'}. Click to view or reply.`}
+              className={`${styles.btnComments} ${commentCount > 0 ? styles.btnCommentsActive : ''} ${hasUnread ? styles.btnCommentsUnread : ''}`}
+              title={hasUnread ? 'Unread comments. Click to view or reply.' : `${commentCount} comment${commentCount === 1 ? '' : 's'}. Click to view or reply.`}
             >
               <MessageSquare size={13} />
               {commentCount > 0 && (
