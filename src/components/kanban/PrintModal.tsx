@@ -69,6 +69,10 @@ function PrintModalForm({
       setError('Model description / name is required');
       return;
     }
+    if (!link.trim()) {
+      setError('Link is required');
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -80,7 +84,7 @@ function PrintModalForm({
         perigrafi: perigrafi.trim(),
         xroma: xroma.trim(),
         megethos: parsedScale,
-        link: link.trim() || null,
+        link: link.trim(),
         comments: comments.trim() || null,
         status: isAdmin ? status : 'Not Started',
       });
@@ -140,16 +144,6 @@ function PrintModalForm({
               onChange={(e) => setXroma(e.target.value)}
             />
             <div className={styles.quickColors}>
-              {QUICK_COLORS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => handleAddQuickColor(c)}
-                  className={styles.colorChip}
-                >
-                  + {c}
-                </button>
-              ))}
               {QUICK_COLORS.map((c) => {
                 const fil = getFilamentStyle(c);
                 return (
@@ -170,8 +164,8 @@ function PrintModalForm({
             </div>
           </div>
 
-          {/* Scale & Admin Status */}
-          <div className={styles.rowTwo}>
+          {/* Scale & Link */}
+          <div className={styles.rowScaleLink}>
             <div className={styles.fieldGroup}>
               <label className={styles.label}>
                 <span>Scale (%)</span>
@@ -185,54 +179,41 @@ function PrintModalForm({
                 value={scalePercent}
                 onChange={(e) => setScalePercent(parseInt(e.target.value, 10) || 100)}
               />
-              <div className={styles.scalePresets}>
-                {[50, 75, 100, 150, 200].map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    className={styles.scaleBtn}
-                    onClick={() => setScalePercent(s)}
-                  >
-                    {s}%
-                  </button>
-                ))}
-              </div>
             </div>
 
-            {isAdmin && (
-              <div className={styles.fieldGroup}>
-                <label className={styles.label}>
-                  <span>Pipeline Status</span>
-                </label>
-                <select
-                  className={styles.select}
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as PrintStatus)}
-                >
-                  {ALL_STATUS_OPTIONS.map((st) => (
-                    <option key={st} value={st}>
-                      {st}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <div className={styles.fieldGroup}>
+              <label className={styles.label}>
+                <span>MakerWorld / Printables Link *</span>
+              </label>
+              <input
+                type="url"
+                className={styles.input}
+                placeholder="https://makerworld.com/en/models/..."
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                required
+              />
+            </div>
           </div>
 
-          {/* Link */}
-          <div className={styles.fieldGroup}>
-            <label className={styles.label}>
-              <span>MakerWorld / Printables Link</span>
-              <span className={styles.labelHint}>Optional URL</span>
-            </label>
-            <input
-              type="text"
-              className={styles.input}
-              placeholder="https://makerworld.com/en/models/..."
-              value={link}
-              onChange={(e) => setLink(e.target.value)}
-            />
-          </div>
+          {isAdmin && (
+            <div className={styles.fieldGroup}>
+              <label className={styles.label}>
+                <span>Pipeline Status</span>
+              </label>
+              <select
+                className={styles.select}
+                value={status}
+                onChange={(e) => setStatus(e.target.value as PrintStatus)}
+              >
+                {ALL_STATUS_OPTIONS.map((st) => (
+                  <option key={st} value={st}>
+                    {st}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Comments */}
           <div className={styles.fieldGroup}>
