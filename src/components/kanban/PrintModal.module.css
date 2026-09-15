@@ -73,8 +73,6 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
-  max-height: calc(85vh - 140px);
-  overflow-y: auto;
 }
 
 .fieldGroup {
@@ -125,9 +123,9 @@
   box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.12);
 }
 
-.rowTwo {
+.rowScaleLink {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 110px 1fr;
   gap: 14px;
 }
 
@@ -166,38 +164,11 @@
   border-radius: 50%;
 }
 
-.scalePresets {
-  display: flex;
-  gap: 6px;
-  margin-top: 4px;
-}
-
-.scaleBtn {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: var(--radius-xs);
-  border: 1px solid var(--border);
-  background-color: var(--bg-page);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.scaleBtn:hover {
-  border-color: var(--brand-primary);
-  color: var(--brand-primary);
-}
-
 .modalFooter {
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  background-color: var(--bg-page);
 }
 
 .btnCancel {
@@ -271,9 +242,9 @@
     gap: 14px;
   }
 
-  .rowTwo {
-    grid-template-columns: 1fr;
-    gap: 14px;
+  .rowScaleLink {
+    grid-template-columns: 90px 1fr;
+    gap: 10px;
   }
 
   .modalFooter {
