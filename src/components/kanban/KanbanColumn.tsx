@@ -25,6 +25,7 @@ interface KanbanColumnProps {
   onOpenComments?: (item: PrintItem) => void;
   onAddSubtask?: (printId: string, title: string) => void;
   onToggleSubtask?: (subtaskId: string, completed: boolean) => void;
+  onUpdateSubtaskTitle?: (subtaskId: string, title: string) => void;
   onDeleteSubtask?: (subtaskId: string) => void;
 }
 
@@ -44,6 +45,7 @@ export function KanbanColumn({
   onOpenComments,
   onAddSubtask,
   onToggleSubtask,
+  onUpdateSubtaskTitle,
   onDeleteSubtask,
 }: KanbanColumnProps) {
   const { setNodeRef } = useDroppable({
@@ -110,6 +112,7 @@ export function KanbanColumn({
                 onOpenComments={onOpenComments}
                 onAddSubtask={onAddSubtask}
                 onToggleSubtask={onToggleSubtask}
+                onUpdateSubtaskTitle={onUpdateSubtaskTitle}
                 onDeleteSubtask={onDeleteSubtask}
               />
             );

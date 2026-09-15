@@ -40,6 +40,7 @@ interface PrintCardProps {
   onOpenComments?: (item: PrintItem) => void;
   onAddSubtask?: (printId: string, title: string) => void;
   onToggleSubtask?: (subtaskId: string, completed: boolean) => void;
+  onUpdateSubtaskTitle?: (subtaskId: string, title: string) => void;
   onDeleteSubtask?: (subtaskId: string) => void;
   isOverlay?: boolean;
 }
@@ -57,6 +58,7 @@ export function PrintCard({
   onOpenComments,
   onAddSubtask,
   onToggleSubtask,
+  onUpdateSubtaskTitle,
   onDeleteSubtask,
   isOverlay = false,
 }: PrintCardProps) {
@@ -65,6 +67,8 @@ export function PrintCard({
 
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const [newSubtaskText, setNewSubtaskText] = useState('');
+  const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
+  const [editingSubtaskText, setEditingSubtaskText] = useState('');
 
   const commentCount = threadComments.length;
   const viewerRole = isAdmin ? 'admin' : 'customer';
@@ -100,6 +104,24 @@ export function PrintCard({
 
   const handleDeleteSubtask = (stId: string) => {
     onDeleteSubtask?.(stId);
+  };
+
+  const handleStartEditSubtask = (st: ItemSubtask) => {
+    setEditingSubtaskId(st.id);
+    setEditingSubtaskText(st.title);
+  };
+
+  const handleCancelEditSubtask = () => {
+    setEditingSubtaskId(null);
+    setEditingSubtaskText('');
+  };
+
+  const handleSaveEditSubtask = () => {
+    const title = editingSubtaskText.trim();
+    if (editingSubtaskId && title) {
+      onUpdateSubtaskTitle?.(editingSubtaskId, title);
+    }
+    handleCancelEditSubtask();
   };
 
   const handleAddPreset = (presetTitle: string) => {
@@ -290,43 +312,84 @@ export function PrintCard({
           {/* Subtask items list */}
           {subtasks.length > 0 && (
             <div className={styles.subtaskList}>
-              {subtasks.map((st) => (
-                <div key={st.id} className={styles.subtaskRow}>
-                  <button
-                    type="button"
-                    className={`${styles.subtaskItem} ${!canManageSubtasks ? styles.subtaskItemReadOnly : ''}`}
-                    disabled={!canManageSubtasks}
+              {subtasks.map((st) =>
+                editingSubtaskId === st.id ? (
+                  <div
+                    key={st.id}
+                    className={styles.subtaskRow}
                     onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (canManageSubtasks) handleToggleSubtask(st);
-                    }}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    {st.completed ? (
-                      <CheckSquare size={14} className={styles.checkDone} />
-                    ) : (
-                      <Square size={14} className={styles.checkEmpty} />
-                    )}
-                    <span className={st.completed ? styles.taskDoneText : styles.taskText}>
-                      {st.title}
-                    </span>
-                  </button>
-                  {canManageSubtasks && (
+                    <input
+                      type="text"
+                      value={editingSubtaskText}
+                      onChange={(e) => setEditingSubtaskText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSaveEditSubtask();
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          handleCancelEditSubtask();
+                        }
+                      }}
+                      onBlur={handleSaveEditSubtask}
+                      className={styles.subtaskInput}
+                      autoFocus
+                    />
+                  </div>
+                ) : (
+                  <div key={st.id} className={styles.subtaskRow}>
                     <button
                       type="button"
-                      className={styles.btnDeleteSubtask}
+                      className={`${styles.subtaskItem} ${!canManageSubtasks ? styles.subtaskItemReadOnly : ''}`}
+                      disabled={!canManageSubtasks}
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteSubtask(st.id);
+                        if (canManageSubtasks) handleToggleSubtask(st);
                       }}
-                      title="Delete task"
                     >
-                      <X size={12} />
+                      {st.completed ? (
+                        <CheckSquare size={14} className={styles.checkDone} />
+                      ) : (
+                        <Square size={14} className={styles.checkEmpty} />
+                      )}
+                      <span className={st.completed ? styles.taskDoneText : styles.taskText}>
+                        {st.title}
+                      </span>
                     </button>
-                  )}
-                </div>
-              ))}
+                    {canManageSubtasks && (
+                      <button
+                        type="button"
+                        className={styles.btnDeleteSubtask}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStartEditSubtask(st);
+                        }}
+                        title="Rename task"
+                      >
+                        <Edit2 size={11} />
+                      </button>
+                    )}
+                    {canManageSubtasks && (
+                      <button
+                        type="button"
+                        className={styles.btnDeleteSubtask}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSubtask(st.id);
+                        }}
+                        title="Delete task"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+                )
+              )}
             </div>
           )}
 

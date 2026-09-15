@@ -520,6 +520,15 @@ export async function toggleSubtaskCompletion(subtaskId: string, completed: bool
   if (error) throw error;
 }
 
+export async function updateSubtaskTitle(subtaskId: string, title: string): Promise<void> {
+  const client = requireSupabase();
+  const { error } = await client
+    .from('item_subtasks')
+    .update({ title: title.trim() })
+    .eq('id', subtaskId);
+  if (error) throw error;
+}
+
 export async function deleteSubtaskFromPrint(subtaskId: string): Promise<void> {
   const client = requireSupabase();
   const { error } = await client.from('item_subtasks').delete().eq('id', subtaskId);

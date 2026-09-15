@@ -23,6 +23,7 @@ interface DeliveredSidebarProps {
   onOpenComments?: (item: PrintItem) => void;
   onAddSubtask?: (printId: string, title: string) => void;
   onToggleSubtask?: (subtaskId: string, completed: boolean) => void;
+  onUpdateSubtaskTitle?: (subtaskId: string, title: string) => void;
   onDeleteSubtask?: (subtaskId: string) => void;
 }
 
@@ -40,6 +41,7 @@ export function DeliveredSidebar({
   onOpenComments,
   onAddSubtask,
   onToggleSubtask,
+  onUpdateSubtaskTitle,
   onDeleteSubtask,
 }: DeliveredSidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -93,6 +95,7 @@ export function DeliveredSidebar({
                     onOpenComments={onOpenComments}
                     onAddSubtask={onAddSubtask}
                     onToggleSubtask={onToggleSubtask}
+                    onUpdateSubtaskTitle={onUpdateSubtaskTitle}
                     onDeleteSubtask={onDeleteSubtask}
                   />
                 );
