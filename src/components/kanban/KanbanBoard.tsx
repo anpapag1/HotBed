@@ -2,11 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
+  closestCenter,
   pointerWithin,
-  KeyboardSensor,
+  rectIntersection,
+  getFirstCollision,
+  PointerSensor,
   MouseSensor,
   TouchSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
   type DragStartEvent,
@@ -14,6 +17,7 @@ import {
   type DragCancelEvent,
   type DragEndEvent,
   type CollisionDetection,
+  type DropAnimation,
 } from '@dnd-kit/core';
 import {
   sortableKeyboardCoordinates,
@@ -77,6 +81,13 @@ interface KanbanBoardProps {
   customerScroll?: boolean;
 }
 
+const ALL_COLUMNS: string[] = [...BOARD_COLUMNS, 'Delivered'];
+
+const dropAnimation: DropAnimation = {
+  duration: 280,
+  easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+};
+
 export function KanbanBoard({
   items,
   orderId,
@@ -95,12 +106,19 @@ export function KanbanBoard({
 }: KanbanBoardProps) {
   const [activeItem, setActiveItem] = useState<PrintItem | null>(null);
   const [clonedItems, setClonedItems] = useState<PrintItem[] | null>(null);
+  const [overContainer, setOverContainer] = useState<PrintStatus | null>(null);
   const [isOverMobileTab, setIsOverMobileTab] = useState(false);
   const [activeCommentItem, setActiveCommentItem] = useState<PrintItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<PrintItem | null>(null);
   const [targetStatus, setTargetStatus] = useState<PrintStatus>('Not Started');
+
+  useEffect(() => {
+    if (!activeItem) {
+      setClonedItems(null);
+    }
+  }, [items, activeItem]);
 
   const currentUserRole: 'admin' | 'customer' = isAdmin ? 'admin' : 'customer';
   const currentUserName = isAdmin ? 'Workshop Admin' : (customerName || 'Customer');
@@ -242,25 +260,75 @@ export function KanbanBoard({
     return () => mq.removeEventListener('change', handler);
   }, []);
 
+  const itemsRef = useRef<PrintItem[]>(items);
+  itemsRef.current = items;
+  const clonedItemsRef = useRef<PrintItem[] | null>(clonedItems);
+  clonedItemsRef.current = clonedItems;
+
+  const lastOverIdRef = useRef<string | null>(null);
+  const lastCollisionIdRef = useRef<string | null>(null);
+
+  const pointerSensor = useSensor(PointerSensor, {
+    activationConstraint: { distance: 5 },
+  });
+  const mouseSensor = useSensor(MouseSensor, {
+    activationConstraint: { distance: 5 },
+  });
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: { delay: 250, tolerance: 5 },
+  });
+  const keyboardSensor = useSensor(KeyboardSensor, {
+    coordinateGetter: sortableKeyboardCoordinates,
+  });
+
   const sensors = useSensors(
-    useSensor(MouseSensor, {
-      activationConstraint: { distance: 5 },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 250, tolerance: 5 },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    ...(isMobile ? [mouseSensor, touchSensor] : [pointerSensor]),
+    keyboardSensor
   );
+
+  const findContainer = (id: string, currentList: PrintItem[]): PrintStatus | undefined => {
+    if (id.startsWith('mobile-tab:')) {
+      const tab = id.slice('mobile-tab:'.length);
+      if (ALL_COLUMNS.includes(tab)) return tab as PrintStatus;
+    }
+    const item = currentList.find((i) => i.id === id) ?? itemsRef.current.find((i) => i.id === id);
+    if (item) return item.status;
+    return ALL_COLUMNS.includes(id) ? (id as PrintStatus) : undefined;
+  };
 
   const collisionDetectionStrategy: CollisionDetection = (args) => {
     const pointerCollisions = pointerWithin(args);
     const tabCollision = pointerCollisions.find((collision) =>
       String(collision.id).startsWith('mobile-tab:')
     );
+    if (tabCollision) {
+      return [tabCollision];
+    }
 
-    return tabCollision ? [tabCollision] : closestCorners(args);
+    const intersections = pointerCollisions.length > 0 ? pointerCollisions : rectIntersection(args);
+    let overId = getFirstCollision(intersections, 'id');
+
+    if (overId != null) {
+      if (ALL_COLUMNS.includes(overId as string)) {
+        const currentList = clonedItemsRef.current ?? itemsRef.current;
+        const containerItemIds = new Set(
+          currentList.filter((i) => i.status === overId).map((i) => i.id)
+        );
+        if (containerItemIds.size > 0) {
+          const refined = closestCenter({
+            ...args,
+            droppableContainers: args.droppableContainers.filter((c) =>
+              containerItemIds.has(c.id as string)
+            ),
+          });
+          overId = getFirstCollision(refined, 'id') ?? overId;
+        }
+      }
+      lastCollisionIdRef.current = overId as string;
+      return [{ id: overId }];
+    }
+
+    return lastCollisionIdRef.current ? [{ id: lastCollisionIdRef.current }] : [];
   };
 
   // Filter items based on search + active filters + sort
@@ -341,6 +409,8 @@ export function KanbanBoard({
     isDraggingRef.current = true;
     touchStartXRef.current = null;
     touchStartYRef.current = null;
+    lastOverIdRef.current = null;
+    lastCollisionIdRef.current = null;
 
     if (readOnly || !isAdmin) return;
     setIsOverMobileTab(false);
@@ -355,6 +425,7 @@ export function KanbanBoard({
         );
       }
       setClonedItems(initialCloned);
+      setOverContainer(found.status);
     }
   };
 
@@ -362,6 +433,7 @@ export function KanbanBoard({
     touchStartXRef.current = null;
     touchStartYRef.current = null;
 
+    if (readOnly || !isAdmin) return;
     const { active, over } = event;
     if (!over) {
       setIsOverMobileTab(false);
@@ -369,70 +441,57 @@ export function KanbanBoard({
     }
 
     const activeId = active.id as string;
-    const rawOverId = over.id as string;
+    const overId = over.id as string;
 
-    const isTab = rawOverId.startsWith('mobile-tab:');
+    const isTab = overId.startsWith('mobile-tab:');
     setIsOverMobileTab(isTab);
 
+    if (activeId === overId) return;
+
+    const currentItems = clonedItemsRef.current ?? itemsRef.current;
+    const activeContainer = findContainer(activeId, currentItems);
+    const overContainerNow = findContainer(overId, currentItems);
+
+    if (overContainerNow && overContainerNow !== overContainer) {
+      setOverContainer(overContainerNow);
+    }
+
+    // Same target as last tick: nothing to do.
+    if (overId === lastOverIdRef.current) return;
+    if (!activeContainer || !overContainerNow) return;
+
+    // Within same container: SortableContext animates card sorting visually.
+    // Do not rebuild array on every mousemove tick!
+    if (activeContainer === overContainerNow) {
+      lastOverIdRef.current = overId;
+      return;
+    }
+
+    lastOverIdRef.current = overId;
+
     setClonedItems((prev) => {
-      const currentItems = prev ?? items;
-      const activeIndex = currentItems.findIndex((i) => i.id === activeId);
+      const list = prev ? [...prev] : [...itemsRef.current];
+      const activeIndex = list.findIndex((i) => i.id === activeId);
       if (activeIndex === -1) return prev;
 
-      const activeItemObj = currentItems[activeIndex];
+      const [moved] = list.splice(activeIndex, 1);
+      const updated: PrintItem = { ...moved, status: overContainerNow };
 
-      // Determine target status and target item
-      let targetStatus: PrintStatus | null = null;
-      let overIndex = -1;
-
-      if (isTab) {
-        const tabStatus = rawOverId.slice('mobile-tab:'.length);
-        if (BOARD_COLUMNS.includes(tabStatus as PrintStatus) || tabStatus === 'Delivered') {
-          targetStatus = tabStatus as PrintStatus;
-        }
-      } else if (BOARD_COLUMNS.includes(rawOverId as PrintStatus) || rawOverId === 'Delivered') {
-        targetStatus = rawOverId as PrintStatus;
-      } else {
-        // overId is another card
-        overIndex = currentItems.findIndex((i) => i.id === rawOverId);
-        if (overIndex !== -1) {
-          targetStatus = currentItems[overIndex].status;
-        }
-      }
-
-      if (!targetStatus) return prev;
-
-      // 1. Moving across containers/statuses
-      if (activeItemObj.status !== targetStatus) {
-        const updatedItem = { ...activeItemObj, status: targetStatus };
-        const withoutActive = currentItems.filter((i) => i.id !== activeId);
-
-        if (overIndex !== -1) {
-          const newOverIndex = withoutActive.findIndex((i) => i.id === rawOverId);
-          const insertAt = newOverIndex !== -1 ? newOverIndex : withoutActive.length;
-          const newItems = [...withoutActive];
-          newItems.splice(insertAt, 0, updatedItem);
-          return newItems;
-        } else {
-          let lastTargetIndex = -1;
-          for (let i = 0; i < withoutActive.length; i++) {
-            if (withoutActive[i].status === targetStatus) {
-              lastTargetIndex = i;
-            }
+      const overIndex = list.findIndex((i) => i.id === overId);
+      if (overIndex === -1) {
+        // Dropped on empty column, column container, sidebar container, or mobile tab
+        let lastTargetIndex = -1;
+        for (let i = 0; i < list.length; i++) {
+          if (list[i].status === overContainerNow) {
+            lastTargetIndex = i;
           }
-          const insertAt = lastTargetIndex !== -1 ? lastTargetIndex + 1 : withoutActive.length;
-          const newItems = [...withoutActive];
-          newItems.splice(insertAt, 0, updatedItem);
-          return newItems;
         }
+        const insertAt = lastTargetIndex !== -1 ? lastTargetIndex + 1 : list.length;
+        list.splice(insertAt, 0, updated);
+      } else {
+        list.splice(overIndex, 0, updated);
       }
-
-      // 2. Within the same container, reordering cards
-      if (overIndex !== -1 && activeIndex !== overIndex) {
-        return arrayMove(currentItems, activeIndex, overIndex);
-      }
-
-      return prev;
+      return list;
     });
   };
 
@@ -443,19 +502,36 @@ export function KanbanBoard({
     touchStartYRef.current = null;
 
     if (readOnly || !isAdmin) return;
-    const { active } = event;
+    const { active, over } = event;
     const activeId = active.id as string;
 
-    const currentCloned = clonedItems;
-    const finalItems = currentCloned ?? items;
-    const finalItem = finalItems.find((i) => i.id === activeId);
     const originalItem = items.find((i) => i.id === activeId);
+    const currentCloned = clonedItems;
+    let finalItems = currentCloned ?? items;
 
     setActiveItem(null);
     setIsOverMobileTab(false);
     setClonedItems(null);
+    lastOverIdRef.current = null;
+    lastCollisionIdRef.current = null;
+    setOverContainer(null);
 
-    if (!finalItem || !originalItem) return;
+    if (!over || !originalItem) return;
+
+    const overId = over.id as string;
+    const isTab = overId.startsWith('mobile-tab:');
+    const droppedOnCard = activeId !== overId && !ALL_COLUMNS.includes(overId) && !isTab;
+
+    if (droppedOnCard) {
+      const oldIndex = finalItems.findIndex((i) => i.id === activeId);
+      const newIndex = finalItems.findIndex((i) => i.id === overId);
+      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+        finalItems = arrayMove(finalItems, oldIndex, newIndex);
+      }
+    }
+
+    const finalItem = finalItems.find((i) => i.id === activeId);
+    if (!finalItem) return;
 
     const wasFromDelivered = originalItem.status === 'Delivered';
 
@@ -466,8 +542,8 @@ export function KanbanBoard({
       }
     }
 
-    // If order changed:
-    if (onReorder && currentCloned) {
+    // If order or status changed:
+    if (onReorder && (currentCloned !== null || droppedOnCard)) {
       onReorder(finalItems);
     }
 
@@ -488,6 +564,9 @@ export function KanbanBoard({
     setActiveItem(null);
     setIsOverMobileTab(false);
     setClonedItems(null);
+    lastOverIdRef.current = null;
+    lastCollisionIdRef.current = null;
+    setOverContainer(null);
   };
 
   const handleAddClick = (status: PrintStatus) => {
@@ -701,6 +780,7 @@ export function KanbanBoard({
               readOnly={readOnly}
               isAdmin={isAdmin}
               fullScroll
+              isOver={overContainer === activeMobileTab}
               onEdit={handleEditClick}
               onDelete={onDeletePrint}
               onDuplicate={handleDuplicateClick}
@@ -730,6 +810,7 @@ export function KanbanBoard({
                   subtasks={subtasks}
                   readOnly={readOnly}
                   isAdmin={isAdmin}
+                  isOver={overContainer === status}
                   onEdit={handleEditClick}
                   onDelete={onDeletePrint}
                   onDuplicate={handleDuplicateClick}
@@ -751,6 +832,7 @@ export function KanbanBoard({
               subtasks={subtasks}
               readOnly={readOnly}
               isAdmin={isAdmin}
+              isOver={overContainer === 'Delivered'}
               onEdit={handleEditClick}
               onDelete={onDeletePrint}
               onDuplicate={handleDuplicateClick}
@@ -832,12 +914,12 @@ export function KanbanBoard({
           </>
         )}
 
-        <DragOverlay>
+        <DragOverlay dropAnimation={dropAnimation}>
           {activeItem ? (
             <div
               className={`${styles.dragOverlayWrapper} ${isOverMobileTab ? styles.dragOverlayOverTab : ''}`}
             >
-              <PrintCard item={activeItem} isOverlay readOnly />
+              <PrintCard item={activeItem} isOverlay isAdmin={isAdmin} readOnly />
             </div>
           ) : null}
         </DragOverlay>
