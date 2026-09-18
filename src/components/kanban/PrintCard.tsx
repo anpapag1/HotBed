@@ -188,6 +188,7 @@ export function PrintCard({
       style={!isOverlay ? dndStyle : undefined}
       {...(isDraggable ? attributes : {})}
       {...(isDraggable ? listeners : {})}
+      data-card="true"
       className={`${styles.card} ${isOverlay ? styles.overlayCard : ''} ${isDraggable ? styles.draggableCard : ''} ${isDragging && !isOverlay ? styles.ghostCard : ''} ${hasUnread ? styles.cardUnread : ''}`}
     >
       {hasUnread && (

@@ -45,28 +45,22 @@ function getTabLabel(status: PrintStatus): string {
   }
 }
 
-interface MobileTabBarProps {
-  activeTab: PrintStatus;
-  counts: Record<string, number>;
-  onTabChange: (status: PrintStatus) => void;
-  deliveredCount?: number;
-  onOpenDelivered?: () => void;
-}
-
 interface MobileTabButtonProps {
   status: PrintStatus;
   activeTab: PrintStatus;
   count: number;
   onTabChange: (status: PrintStatus) => void;
+  isDragging?: boolean;
 }
 
-function MobileTabButton({ status, activeTab, count, onTabChange }: MobileTabButtonProps) {
+function MobileTabButton({ status, activeTab, count, onTabChange, isDragging }: MobileTabButtonProps) {
   const { isOver, setNodeRef } = useDroppable({ id: `mobile-tab:${status}` });
   const config = getStatusConfig(status);
   const isActive = status === activeTab;
 
   const handleTrigger = (e: React.SyntheticEvent) => {
     e.stopPropagation();
+    if (isDragging) return;
     onTabChange(status);
   };
 
@@ -78,7 +72,7 @@ function MobileTabButton({ status, activeTab, count, onTabChange }: MobileTabBut
       style={{ '--tab-color': config.dotColor } as React.CSSProperties}
       onPointerDown={(e) => {
         // Trigger on primary pointer/finger down so response is instantaneous (0ms lag)
-        if (e.button === 0) {
+        if (e.button === 0 && !isDragging) {
           handleTrigger(e);
         }
       }}
@@ -99,15 +93,17 @@ function MobileTabButton({ status, activeTab, count, onTabChange }: MobileTabBut
 
 interface DeliveredFabProps {
   count: number;
-  onOpen: () => void;
+  onOpen?: () => void;
+  isDragging?: boolean;
 }
 
-function DeliveredFab({ count, onOpen }: DeliveredFabProps) {
+function DeliveredFab({ count, onOpen, isDragging }: DeliveredFabProps) {
   const { isOver, setNodeRef } = useDroppable({ id: 'mobile-tab:Delivered' });
 
   const handleTrigger = (e: React.SyntheticEvent) => {
     e.stopPropagation();
-    onOpen();
+    if (isDragging) return;
+    onOpen?.();
   };
 
   return (
@@ -117,7 +113,7 @@ function DeliveredFab({ count, onOpen }: DeliveredFabProps) {
       className={`${styles.deliveredFab} ${isOver ? styles.deliveredFabDropTarget : ''}`}
       onClick={handleTrigger}
       onPointerDown={(e) => {
-        if (e.button === 0) {
+        if (e.button === 0 && !isDragging) {
           handleTrigger(e);
         }
       }}
@@ -132,12 +128,22 @@ function DeliveredFab({ count, onOpen }: DeliveredFabProps) {
   );
 }
 
+interface MobileTabBarProps {
+  activeTab: PrintStatus;
+  counts: Record<PrintStatus, number>;
+  onTabChange: (status: PrintStatus) => void;
+  deliveredCount?: number;
+  onOpenDelivered?: () => void;
+  isDragging?: boolean;
+}
+
 export function MobileTabBar({
   activeTab,
   counts,
   onTabChange,
   deliveredCount = 0,
   onOpenDelivered,
+  isDragging = false,
 }: MobileTabBarProps) {
   return (
     <div className={styles.tabBarWrapper}>
@@ -152,14 +158,17 @@ export function MobileTabBar({
               activeTab={activeTab}
               count={count}
               onTabChange={onTabChange}
+              isDragging={isDragging}
             />
           );
         })}
       </nav>
 
-      {onOpenDelivered && (
-        <DeliveredFab count={deliveredCount} onOpen={onOpenDelivered} />
-      )}
+      <DeliveredFab
+        count={deliveredCount}
+        onOpen={onOpenDelivered}
+        isDragging={isDragging}
+      />
     </div>
   );
 }

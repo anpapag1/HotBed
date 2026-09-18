@@ -323,7 +323,17 @@ export function KanbanBoard({
   const columnsToRender = BOARD_COLUMNS;
 
 
+  // Track dragging state to prevent swipe gesture and tab clicks from firing
+  const isDraggingRef = useRef<boolean>(false);
+  const dragEndedAtRef = useRef<number>(0);
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+
   const handleDragStart = (event: DragStartEvent) => {
+    isDraggingRef.current = true;
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+
     if (readOnly || !isAdmin) return;
     setIsOverMobileTab(false);
     const { active } = event;
@@ -341,6 +351,9 @@ export function KanbanBoard({
   };
 
   const handleDragOver = (event: DragOverEvent) => {
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+
     const { active, over } = event;
     if (!over) {
       setIsOverMobileTab(false);
@@ -416,6 +429,11 @@ export function KanbanBoard({
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
+    isDraggingRef.current = false;
+    dragEndedAtRef.current = Date.now();
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+
     if (readOnly || !isAdmin) return;
     const { active } = event;
     const activeId = active.id as string;
@@ -455,6 +473,10 @@ export function KanbanBoard({
   };
 
   const handleDragCancel = (_event: DragCancelEvent) => {
+    isDraggingRef.current = false;
+    dragEndedAtRef.current = Date.now();
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
     setActiveItem(null);
     setIsOverMobileTab(false);
     setClonedItems(null);
@@ -516,20 +538,42 @@ export function KanbanBoard({
     setIsModalOpen(false);
   };
 
-  // Swipe gesture support to switch between tabs on mobile
-  const touchStartXRef = useRef<number | null>(null);
-  const touchStartYRef = useRef<number | null>(null);
-
+  // Swipe gesture support to switch between tabs on mobile (disabled while dragging or interacting with cards)
   const handleMobileTouchStart = (e: React.TouchEvent) => {
-    // Only track single-finger gestures when not dragging a card
-    if (e.touches.length === 1 && !activeItem) {
+    // If currently dragging, or drag just completed, do not track swipe
+    if (activeItem || isDraggingRef.current || Date.now() - dragEndedAtRef.current < 600) {
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
+      return;
+    }
+
+    // Never track swipe if touch starts on a card or interactive element (cards are for dragging/editing)
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('[data-card="true"], button, a, input, textarea')) {
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
+      return;
+    }
+
+    // Only track single-finger gestures on empty column/board background
+    if (e.touches.length === 1) {
       touchStartXRef.current = e.touches[0].clientX;
       touchStartYRef.current = e.touches[0].clientY;
     }
   };
 
   const handleMobileTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartXRef.current === null || touchStartYRef.current === null || activeItem) return;
+    if (
+      touchStartXRef.current === null ||
+      touchStartYRef.current === null ||
+      activeItem ||
+      isDraggingRef.current ||
+      Date.now() - dragEndedAtRef.current < 600
+    ) {
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
+      return;
+    }
     const endX = e.changedTouches[0]?.clientX ?? touchStartXRef.current;
     const endY = e.changedTouches[0]?.clientY ?? touchStartYRef.current;
     const diffX = endX - touchStartXRef.current;
@@ -721,6 +765,7 @@ export function KanbanBoard({
             onTabChange={setActiveMobileTab}
             deliveredCount={deliveredItems.length}
             onOpenDelivered={() => setShowDeliveredSheet(true)}
+            isDragging={Boolean(activeItem)}
           />
         )}
 
