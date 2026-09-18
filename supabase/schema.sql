@@ -262,6 +262,7 @@ CREATE TABLE IF NOT EXISTS item_comments (
   author_role text NOT NULL CHECK (author_role IN ('admin', 'customer')),
   author_name text NOT NULL DEFAULT '',
   content text NOT NULL,
+  has_been_seen boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -318,13 +319,14 @@ BEGIN
     RAISE EXCEPTION 'Comment cannot be empty';
   END IF;
 
-  INSERT INTO item_comments (print_id, order_id, author_role, author_name, content)
+  INSERT INTO item_comments (print_id, order_id, author_role, author_name, content, has_been_seen)
   VALUES (
     p_print_id,
     v_order_id,
     'customer',
     COALESCE(NULLIF(trim(p_author_name), ''), 'Customer'),
-    trim(p_content)
+    trim(p_content),
+    false
   )
   RETURNING * INTO v_row;
 
@@ -377,6 +379,23 @@ $$;
 GRANT EXECUTE ON FUNCTION delete_item_comment(text, uuid) TO anon;
 GRANT EXECUTE ON FUNCTION delete_item_comment(text, uuid) TO authenticated;
 
+-- RPC: mark_item_comments_seen (mark all comments on a print item as seen)
+CREATE OR REPLACE FUNCTION mark_item_comments_seen(p_print_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE item_comments
+  SET has_been_seen = true
+  WHERE print_id = p_print_id AND has_been_seen = false;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION mark_item_comments_seen(uuid) TO anon;
+GRANT EXECUTE ON FUNCTION mark_item_comments_seen(uuid) TO authenticated;
+
 -- ==============================================================================
 -- 8. ITEM SUBTASKS (workshop checklist per print part, admin-managed, customer-visible)
 -- ==============================================================================
@@ -428,4 +447,13 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE item_subtasks;
   END IF;
 END $$;
+
+-- ==============================================================================
+-- 10. MIGRATION: Add has_been_seen to item_comments (Run in SQL Editor on existing DB)
+-- ==============================================================================
+ALTER TABLE item_comments ADD COLUMN IF NOT EXISTS has_been_seen boolean NOT NULL DEFAULT false;
+
+-- Mark pre-existing comments as seen so existing orders don't display unread badges
+UPDATE item_comments SET has_been_seen = true WHERE has_been_seen = false;
+
 

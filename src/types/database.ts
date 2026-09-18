@@ -58,6 +58,7 @@ export interface ItemComment {
   author_role: 'admin' | 'customer';
   author_name: string;
   content: string;
+  has_been_seen: boolean;
   created_at: string;
 }
 

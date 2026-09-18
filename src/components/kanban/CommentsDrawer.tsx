@@ -4,6 +4,7 @@ import { X, Send, MessageSquare, Trash2 } from 'lucide-react';
 import type { PrintItem, ItemComment } from '../../types/database';
 import { getStatusConfig } from '../../utils/statusConfig';
 import { markItemCommentsRead } from '../../utils/commentService';
+import { markCommentsSeen } from '../../services/orderService';
 import styles from './CommentsDrawer.module.css';
 
 interface CommentsDrawerProps {
@@ -13,6 +14,7 @@ interface CommentsDrawerProps {
   onClose: () => void;
   onSend: (printId: string, content: string) => Promise<void>;
   onDelete: (commentId: string) => Promise<void>;
+  onCommentsSeen?: (printId: string) => void;
   isAdmin?: boolean;
   currentUserRole?: 'admin' | 'customer';
   currentUserName?: string;
@@ -49,6 +51,7 @@ export function CommentsDrawer({
   onClose,
   onSend,
   onDelete,
+  onCommentsSeen,
   isAdmin = false,
   currentUserRole = isAdmin ? 'admin' : 'customer',
   currentUserName = isAdmin ? 'Workshop Admin' : 'Customer',
@@ -60,11 +63,23 @@ export function CommentsDrawer({
 
   // Mark the other side's comments read as soon as this item's drawer is open,
   // and again whenever a new comment arrives while it's still open.
+  // For admins, also mark unseen customer comments as seen in Supabase.
   useEffect(() => {
     if (isOpen && item) {
       markItemCommentsRead(item.id, currentUserRole, comments);
+      if (currentUserRole === 'admin') {
+        const hasUnseen = comments.some(
+          (c) => c.print_id === item.id && c.author_role === 'customer' && !c.has_been_seen
+        );
+        if (hasUnseen) {
+          onCommentsSeen?.(item.id);
+          markCommentsSeen(item.id).catch((err) =>
+            console.error('Failed to mark comments as seen in Supabase:', err)
+          );
+        }
+      }
     }
-  }, [isOpen, item, currentUserRole, comments]);
+  }, [isOpen, item, currentUserRole, comments, onCommentsSeen]);
 
   // Scroll to bottom when new comment arrives or drawer opens
   useEffect(() => {

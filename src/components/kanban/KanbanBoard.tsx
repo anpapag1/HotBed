@@ -159,6 +159,14 @@ export function KanbanBoard({
     setComments(fresh);
   };
 
+  const handleCommentsSeen = (printId: string) => {
+    setComments((prev) =>
+      prev.map((c) =>
+        c.print_id === printId ? { ...c, has_been_seen: true } : c
+      )
+    );
+  };
+
   const handleAddSubtask = async (printId: string, title: string) => {
     try {
       const created = await addSubtaskToPrint(printId, orderId, title);
@@ -859,6 +867,7 @@ export function KanbanBoard({
         onClose={() => setActiveCommentItem(null)}
         onSend={handleSendComment}
         onDelete={handleDeleteComment}
+        onCommentsSeen={handleCommentsSeen}
         isAdmin={isAdmin}
         currentUserRole={currentUserRole}
         currentUserName={currentUserName}

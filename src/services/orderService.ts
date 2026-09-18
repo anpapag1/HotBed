@@ -389,6 +389,7 @@ export async function addAdminComment(
         author_role: 'admin',
         author_name: authorName.trim() || 'Workshop Admin',
         content: content.trim(),
+        has_been_seen: true,
       },
     ])
     .select()
@@ -396,6 +397,28 @@ export async function addAdminComment(
 
   if (error) throw error;
   return data as ItemComment;
+}
+
+export async function markCommentsSeen(printId: string): Promise<void> {
+  const client = requireSupabase();
+
+  // Try RPC first, fallback to direct update if RPC is pending migration
+  const { error: rpcErr } = await client.rpc('mark_item_comments_seen', {
+    p_print_id: printId,
+  });
+
+  if (rpcErr) {
+    const { error: directErr } = await client
+      .from('item_comments')
+      .update({ has_been_seen: true })
+      .eq('print_id', printId)
+      .eq('has_been_seen', false);
+
+    if (directErr) {
+      console.error('Error marking comments as seen:', directErr);
+      throw directErr;
+    }
+  }
 }
 
 export async function addCustomerCommentViaRPC(
