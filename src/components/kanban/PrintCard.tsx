@@ -17,26 +17,21 @@ import {
   MessageSquare,
   RotateCcw,
 } from 'lucide-react';
-import type { PrintItem, PrintStatus } from '../../types/database';
+import type { PrintItem, PrintStatus, ItemComment, ItemSubtask } from '../../types/database';
 import {
   parseColors,
   getFilamentStyle,
   extractUrls,
   getCommentAlerts,
 } from '../../utils/statusConfig';
-import {
-  getItemSubtasks,
-  addSubtask,
-  toggleSubtask,
-  deleteSubtask,
-  SUBTASK_PRESETS,
-  type SubTask,
-} from '../../utils/subtaskService';
-import { getItemCommentCount } from '../../utils/commentService';
+import { SUBTASK_PRESETS } from '../../utils/subtaskService';
+import { hasUnreadComments } from '../../utils/commentService';
 import styles from './PrintCard.module.css';
 
 interface PrintCardProps {
   item: PrintItem;
+  threadComments?: ItemComment[];
+  subtasks?: ItemSubtask[];
   readOnly?: boolean;
   isAdmin?: boolean;
   onEdit?: (item: PrintItem) => void;
@@ -44,11 +39,17 @@ interface PrintCardProps {
   onDuplicate?: (item: PrintItem) => void;
   onChangeStatus?: (id: string, newStatus: PrintStatus) => void;
   onOpenComments?: (item: PrintItem) => void;
+  onAddSubtask?: (printId: string, title: string) => void;
+  onToggleSubtask?: (subtaskId: string, completed: boolean) => void;
+  onUpdateSubtaskTitle?: (subtaskId: string, title: string) => void;
+  onDeleteSubtask?: (subtaskId: string) => void;
   isOverlay?: boolean;
 }
 
 export function PrintCard({
   item,
+  threadComments = [],
+  subtasks = [],
   readOnly = false,
   isAdmin = false,
   onEdit,
@@ -56,44 +57,37 @@ export function PrintCard({
   onDuplicate,
   onChangeStatus,
   onOpenComments,
+  onAddSubtask,
+  onToggleSubtask,
+  onUpdateSubtaskTitle,
+  onDeleteSubtask,
   isOverlay = false,
 }: PrintCardProps) {
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const actionMenuRef = useRef<HTMLDivElement>(null);
 
-  // Dynamic subtasks (empty by default, user adds whenever they want)
-  const [subtasks, setSubtasks] = useState<SubTask[]>(() => getItemSubtasks(item.id));
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const [newSubtaskText, setNewSubtaskText] = useState('');
+  const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
+  const [editingSubtaskText, setEditingSubtaskText] = useState('');
 
-  // Comment count synced in real time
-  const [commentCount, setCommentCount] = useState<number>(() =>
-    getItemCommentCount(item.id, item.comments)
-  );
+  const commentCount = threadComments.length;
+  const viewerRole = isAdmin ? 'admin' : 'customer';
+  const hasUnread = hasUnreadComments(item.id, viewerRole, threadComments);
 
-  // Sync subtasks if modified elsewhere
+  // localStorage read-state changes elsewhere (e.g. opening the drawer) don't
+  // themselves trigger a re-render here, so force one via a tick on the event.
+  const [, forceReadTick] = useState(0);
   useEffect(() => {
-    const handleSync = (e: Event) => {
+    const handleCommentsRead = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail && detail.itemId === item.id) {
-        setSubtasks(detail.subtasks);
+      if (detail && detail.itemId === item.id && detail.role === viewerRole) {
+        forceReadTick((t) => t + 1);
       }
     };
-    window.addEventListener('subtasks-updated', handleSync);
-    return () => window.removeEventListener('subtasks-updated', handleSync);
-  }, [item.id]);
-
-  // Sync comments count if modified elsewhere
-  useEffect(() => {
-    const handleCommentsSync = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail && detail.itemId === item.id) {
-        setCommentCount(detail.count);
-      }
-    };
-    window.addEventListener('comments-updated', handleCommentsSync);
-    return () => window.removeEventListener('comments-updated', handleCommentsSync);
-  }, [item.id]);
+    window.addEventListener('comments-read', handleCommentsRead);
+    return () => window.removeEventListener('comments-read', handleCommentsRead);
+  }, [item.id, viewerRole]);
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -105,25 +99,39 @@ export function PrintCard({
     return () => document.removeEventListener('mousedown', handleOutside);
   }, []);
 
-  const handleToggleSubtask = (stId: string) => {
-    toggleSubtask(item.id, stId);
-    setSubtasks(getItemSubtasks(item.id));
+  const handleToggleSubtask = (st: ItemSubtask) => {
+    onToggleSubtask?.(st.id, !st.completed);
   };
 
   const handleDeleteSubtask = (stId: string) => {
-    deleteSubtask(item.id, stId);
-    setSubtasks(getItemSubtasks(item.id));
+    onDeleteSubtask?.(stId);
+  };
+
+  const handleStartEditSubtask = (st: ItemSubtask) => {
+    setEditingSubtaskId(st.id);
+    setEditingSubtaskText(st.title);
+  };
+
+  const handleCancelEditSubtask = () => {
+    setEditingSubtaskId(null);
+    setEditingSubtaskText('');
+  };
+
+  const handleSaveEditSubtask = () => {
+    const title = editingSubtaskText.trim();
+    if (editingSubtaskId && title) {
+      onUpdateSubtaskTitle?.(editingSubtaskId, title);
+    }
+    handleCancelEditSubtask();
   };
 
   const handleAddPreset = (presetTitle: string) => {
-    addSubtask(item.id, presetTitle);
-    setSubtasks(getItemSubtasks(item.id));
+    onAddSubtask?.(item.id, presetTitle);
   };
 
   const handleCreateCustom = () => {
     if (!newSubtaskText.trim()) return;
-    addSubtask(item.id, newSubtaskText.trim());
-    setSubtasks(getItemSubtasks(item.id));
+    onAddSubtask?.(item.id, newSubtaskText.trim());
     setNewSubtaskText('');
   };
 
@@ -180,8 +188,15 @@ export function PrintCard({
       style={!isOverlay ? dndStyle : undefined}
       {...(isDraggable ? attributes : {})}
       {...(isDraggable ? listeners : {})}
-      className={`${styles.card} ${isOverlay ? styles.overlayCard : ''} ${isDraggable ? styles.draggableCard : ''} ${isDragging && !isOverlay ? styles.ghostCard : ''}`}
+      className={`${styles.card} ${isOverlay ? styles.overlayCard : ''} ${isDraggable ? styles.draggableCard : ''} ${isDragging && !isOverlay ? styles.ghostCard : ''} ${hasUnread ? styles.cardUnread : ''}`}
     >
+      {hasUnread && (
+        <span className={styles.unreadBadge} title="Unread comments">
+          <span className={styles.unreadBadgeRing} />
+          <MessageSquare size={10} strokeWidth={3} />
+        </span>
+      )}
+
       {/* Top Row: Title + Actions */}
       <div className={styles.cardHeader}>
         <div className={styles.titleArea}>
@@ -298,43 +313,84 @@ export function PrintCard({
           {/* Subtask items list */}
           {subtasks.length > 0 && (
             <div className={styles.subtaskList}>
-              {subtasks.map((st) => (
-                <div key={st.id} className={styles.subtaskRow}>
-                  <button
-                    type="button"
-                    className={`${styles.subtaskItem} ${!canManageSubtasks ? styles.subtaskItemReadOnly : ''}`}
-                    disabled={!canManageSubtasks}
+              {subtasks.map((st) =>
+                editingSubtaskId === st.id ? (
+                  <div
+                    key={st.id}
+                    className={styles.subtaskRow}
                     onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (canManageSubtasks) handleToggleSubtask(st.id);
-                    }}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    {st.completed ? (
-                      <CheckSquare size={14} className={styles.checkDone} />
-                    ) : (
-                      <Square size={14} className={styles.checkEmpty} />
-                    )}
-                    <span className={st.completed ? styles.taskDoneText : styles.taskText}>
-                      {st.title}
-                    </span>
-                  </button>
-                  {canManageSubtasks && (
+                    <input
+                      type="text"
+                      value={editingSubtaskText}
+                      onChange={(e) => setEditingSubtaskText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSaveEditSubtask();
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          handleCancelEditSubtask();
+                        }
+                      }}
+                      onBlur={handleSaveEditSubtask}
+                      className={styles.subtaskInput}
+                      autoFocus
+                    />
+                  </div>
+                ) : (
+                  <div key={st.id} className={styles.subtaskRow}>
                     <button
                       type="button"
-                      className={styles.btnDeleteSubtask}
+                      className={`${styles.subtaskItem} ${!canManageSubtasks ? styles.subtaskItemReadOnly : ''}`}
+                      disabled={!canManageSubtasks}
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteSubtask(st.id);
+                        if (canManageSubtasks) handleToggleSubtask(st);
                       }}
-                      title="Delete task"
                     >
-                      <X size={12} />
+                      {st.completed ? (
+                        <CheckSquare size={14} className={styles.checkDone} />
+                      ) : (
+                        <Square size={14} className={styles.checkEmpty} />
+                      )}
+                      <span className={st.completed ? styles.taskDoneText : styles.taskText}>
+                        {st.title}
+                      </span>
                     </button>
-                  )}
-                </div>
-              ))}
+                    {canManageSubtasks && (
+                      <button
+                        type="button"
+                        className={styles.btnDeleteSubtask}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStartEditSubtask(st);
+                        }}
+                        title="Rename task"
+                      >
+                        <Edit2 size={11} />
+                      </button>
+                    )}
+                    {canManageSubtasks && (
+                      <button
+                        type="button"
+                        className={styles.btnDeleteSubtask}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSubtask(st.id);
+                        }}
+                        title="Delete task"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+                )
+              )}
             </div>
           )}
 
@@ -480,8 +536,8 @@ export function PrintCard({
                 e.stopPropagation();
                 onOpenComments(item);
               }}
-              className={`${styles.btnComments} ${commentCount > 0 ? styles.btnCommentsActive : ''}`}
-              title={`${commentCount} comment${commentCount === 1 ? '' : 's'}. Click to view or reply.`}
+              className={`${styles.btnComments} ${commentCount > 0 ? styles.btnCommentsActive : ''} ${hasUnread ? styles.btnCommentsUnread : ''}`}
+              title={hasUnread ? 'Unread comments. Click to view or reply.' : `${commentCount} comment${commentCount === 1 ? '' : 's'}. Click to view or reply.`}
             >
               <MessageSquare size={13} />
               {commentCount > 0 && (

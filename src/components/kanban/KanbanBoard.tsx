@@ -22,7 +22,27 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { Search, Plus, CheckCircle2, SlidersHorizontal } from 'lucide-react';
-import { type PrintItem, type PrintStatus, BOARD_COLUMNS } from '../../types/database';
+import {
+  type PrintItem,
+  type PrintStatus,
+  type ItemComment,
+  type ItemSubtask,
+  BOARD_COLUMNS,
+} from '../../types/database';
+import {
+  fetchCommentsForOrder,
+  subscribeToCommentsForOrder,
+  addAdminComment,
+  addCustomerCommentViaRPC,
+  deleteAdminComment,
+  deleteCustomerCommentViaRPC,
+  fetchSubtasksForOrder,
+  subscribeToSubtasksForOrder,
+  addSubtaskToPrint,
+  toggleSubtaskCompletion,
+  updateSubtaskTitle,
+  deleteSubtaskFromPrint,
+} from '../../services/orderService';
 import { parseColors } from '../../utils/statusConfig';
 import { FilterPopover, type FilterState, INITIAL_FILTERS } from './FilterPopover';
 import { KanbanColumn } from './KanbanColumn';
@@ -36,6 +56,7 @@ import styles from './KanbanBoard.module.css';
 interface KanbanBoardProps {
   items: PrintItem[];
   orderId: string;
+  orderCode?: string;
   customerName?: string | null;
   readOnly?: boolean;
   isAdmin?: boolean;
@@ -59,6 +80,7 @@ interface KanbanBoardProps {
 export function KanbanBoard({
   items,
   orderId,
+  orderCode,
   customerName,
   readOnly = false,
   isAdmin = false,
@@ -79,6 +101,103 @@ export function KanbanBoard({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<PrintItem | null>(null);
   const [targetStatus, setTargetStatus] = useState<PrintStatus>('Not Started');
+
+  const currentUserRole: 'admin' | 'customer' = isAdmin ? 'admin' : 'customer';
+  const currentUserName = isAdmin ? 'Workshop Admin' : (customerName || 'Customer');
+
+  // Threaded comments + workshop subtasks from Supabase
+  const [comments, setComments] = useState<ItemComment[]>([]);
+  const [subtasks, setSubtasks] = useState<ItemSubtask[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetchCommentsForOrder(orderId)
+      .then((data) => { if (isMounted) setComments(data); })
+      .catch((err) => console.error('Failed to load comments:', err));
+
+    fetchSubtasksForOrder(orderId)
+      .then((data) => { if (isMounted) setSubtasks(data); })
+      .catch((err) => console.error('Failed to load subtasks:', err));
+
+    const unsubComments = subscribeToCommentsForOrder(orderId, () => {
+      fetchCommentsForOrder(orderId)
+        .then((data) => { if (isMounted) setComments(data); })
+        .catch((err) => console.error('Failed to refresh comments:', err));
+    });
+
+    const unsubSubtasks = subscribeToSubtasksForOrder(orderId, () => {
+      fetchSubtasksForOrder(orderId)
+        .then((data) => { if (isMounted) setSubtasks(data); })
+        .catch((err) => console.error('Failed to refresh subtasks:', err));
+    });
+
+    return () => {
+      isMounted = false;
+      unsubComments();
+      unsubSubtasks();
+    };
+  }, [orderId]);
+
+  const handleSendComment = async (printId: string, content: string) => {
+    if (isAdmin) {
+      await addAdminComment(printId, orderId, content, currentUserName);
+    } else if (orderCode) {
+      await addCustomerCommentViaRPC(orderCode, printId, content, currentUserName);
+    }
+    const fresh = await fetchCommentsForOrder(orderId);
+    setComments(fresh);
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (isAdmin) {
+      await deleteAdminComment(commentId);
+    } else if (orderCode) {
+      await deleteCustomerCommentViaRPC(orderCode, commentId);
+    }
+    const fresh = await fetchCommentsForOrder(orderId);
+    setComments(fresh);
+  };
+
+  const handleAddSubtask = async (printId: string, title: string) => {
+    try {
+      const created = await addSubtaskToPrint(printId, orderId, title);
+      setSubtasks((prev) => [...prev, created]);
+    } catch (err) {
+      console.error('Failed to add subtask:', err);
+    }
+  };
+
+  const handleToggleSubtask = async (subtaskId: string, completed: boolean) => {
+    setSubtasks((prev) =>
+      prev.map((s) => (s.id === subtaskId ? { ...s, completed } : s))
+    );
+    try {
+      await toggleSubtaskCompletion(subtaskId, completed);
+    } catch (err) {
+      console.error('Failed to toggle subtask:', err);
+    }
+  };
+
+  const handleUpdateSubtaskTitle = async (subtaskId: string, title: string) => {
+    setSubtasks((prev) =>
+      prev.map((s) => (s.id === subtaskId ? { ...s, title } : s))
+    );
+    try {
+      await updateSubtaskTitle(subtaskId, title);
+    } catch (err) {
+      console.error('Failed to rename subtask:', err);
+    }
+  };
+
+  const handleDeleteSubtask = async (subtaskId: string) => {
+    setSubtasks((prev) => prev.filter((s) => s.id !== subtaskId));
+    try {
+      await deleteSubtaskFromPrint(subtaskId);
+    } catch (err) {
+      console.error('Failed to delete subtask:', err);
+    }
+  };
 
   // Filter & sort state
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
@@ -525,6 +644,8 @@ export function KanbanBoard({
               key={activeMobileTab}
               status={activeMobileTab}
               items={filteredItems.filter((i) => i.status === activeMobileTab)}
+              comments={comments}
+              subtasks={subtasks}
               readOnly={readOnly}
               isAdmin={isAdmin}
               fullScroll
@@ -538,6 +659,10 @@ export function KanbanBoard({
                   : undefined
               }
               onOpenComments={(item) => setActiveCommentItem(item)}
+              onAddSubtask={handleAddSubtask}
+              onToggleSubtask={handleToggleSubtask}
+              onUpdateSubtaskTitle={handleUpdateSubtaskTitle}
+              onDeleteSubtask={handleDeleteSubtask}
             />
           </div>
         ) : (
@@ -549,6 +674,8 @@ export function KanbanBoard({
                   key={status}
                   status={status}
                   items={filteredItems.filter((i) => i.status === status)}
+                  comments={comments}
+                  subtasks={subtasks}
                   readOnly={readOnly}
                   isAdmin={isAdmin}
                   onEdit={handleEditClick}
@@ -557,6 +684,10 @@ export function KanbanBoard({
                   onChangeStatus={isAdmin ? onUpdateStatus : undefined}
                   onAddClick={isAdmin || status === 'Not Started' ? handleAddClick : undefined}
                   onOpenComments={(item) => setActiveCommentItem(item)}
+                  onAddSubtask={handleAddSubtask}
+                  onToggleSubtask={handleToggleSubtask}
+                  onUpdateSubtaskTitle={handleUpdateSubtaskTitle}
+                  onDeleteSubtask={handleDeleteSubtask}
                 />
               ))}
             </div>
@@ -564,6 +695,8 @@ export function KanbanBoard({
             {/* Delivered Sidebar — desktop only */}
             <DeliveredSidebar
               items={deliveredItems}
+              comments={comments}
+              subtasks={subtasks}
               readOnly={readOnly}
               isAdmin={isAdmin}
               onEdit={handleEditClick}
@@ -571,6 +704,10 @@ export function KanbanBoard({
               onDuplicate={handleDuplicateClick}
               onChangeStatus={isAdmin ? onUpdateStatus : undefined}
               onOpenComments={(item) => setActiveCommentItem(item)}
+              onAddSubtask={handleAddSubtask}
+              onToggleSubtask={handleToggleSubtask}
+              onUpdateSubtaskTitle={handleUpdateSubtaskTitle}
+              onDeleteSubtask={handleDeleteSubtask}
             />
           </div>
         )}
@@ -668,13 +805,19 @@ export function KanbanBoard({
       {/* Threaded Comments Drawer */}
       <CommentsDrawer
         item={activeCommentItem}
+        comments={
+          activeCommentItem
+            ? comments.filter((c) => c.print_id === activeCommentItem.id)
+            : []
+        }
         isOpen={Boolean(activeCommentItem)}
         onClose={() => setActiveCommentItem(null)}
+        onSend={handleSendComment}
+        onDelete={handleDeleteComment}
         isAdmin={isAdmin}
-        currentUserRole={isAdmin ? 'admin' : 'customer'}
-        currentUserName={isAdmin ? 'Workshop Admin' : (customerName || 'Customer')}
+        currentUserRole={currentUserRole}
+        currentUserName={currentUserName}
       />
     </div>
   );
 }
-
