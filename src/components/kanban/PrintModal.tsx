@@ -69,6 +69,10 @@ function PrintModalForm({
       setError('Model description / name is required');
       return;
     }
+    if (!link.trim()) {
+      setError('Link is required');
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -80,7 +84,7 @@ function PrintModalForm({
         perigrafi: perigrafi.trim(),
         xroma: xroma.trim(),
         megethos: parsedScale,
-        link: link.trim() || null,
+        link: link.trim(),
         comments: comments.trim() || null,
         status: isAdmin ? status : 'Not Started',
       });
@@ -236,15 +240,15 @@ function PrintModalForm({
             {/* Link */}
             <div className={styles.fieldGroup}>
               <label className={styles.label}>
-                <span>MakerWorld / Printables Link</span>
-                <span className={styles.labelHint}>Optional URL</span>
+                <span>MakerWorld / Printables Link *</span>
               </label>
               <input
-                type="text"
+                type="url"
                 className={styles.input}
                 placeholder="https://makerworld.com/en/models/..."
                 value={link}
                 onChange={(e) => setLink(e.target.value)}
+                required
               />
             </div>
 

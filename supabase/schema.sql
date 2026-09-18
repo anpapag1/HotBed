@@ -252,3 +252,180 @@ $$;
 GRANT EXECUTE ON FUNCTION delete_print_from_order(text, uuid) TO anon;
 GRANT EXECUTE ON FUNCTION delete_print_from_order(text, uuid) TO authenticated;
 
+-- ==============================================================================
+-- 7. ITEM COMMENTS (threaded chat between admin and customer on a print part)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS item_comments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  print_id uuid NOT NULL REFERENCES prints(id) ON DELETE CASCADE,
+  order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  author_role text NOT NULL CHECK (author_role IN ('admin', 'customer')),
+  author_name text NOT NULL DEFAULT '',
+  content text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_item_comments_print_id ON item_comments (print_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_item_comments_order_id ON item_comments (order_id);
+
+ALTER TABLE item_comments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admin full access on item_comments"
+  ON item_comments
+  FOR ALL
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Public read item_comments"
+  ON item_comments
+  FOR SELECT
+  TO anon
+  USING (true);
+
+-- RPC: add_item_comment (guarded public posting as 'customer')
+CREATE OR REPLACE FUNCTION add_item_comment(
+  p_order_code text,
+  p_print_id uuid,
+  p_content text,
+  p_author_name text DEFAULT ''
+)
+RETURNS item_comments
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_order_id uuid;
+  v_print_order_id uuid;
+  v_row item_comments;
+BEGIN
+  SELECT id INTO v_order_id
+  FROM orders
+  WHERE upper(order_code) = upper(trim(p_order_code));
+
+  IF v_order_id IS NULL THEN
+    RAISE EXCEPTION 'Order not found';
+  END IF;
+
+  SELECT order_id INTO v_print_order_id FROM prints WHERE id = p_print_id;
+
+  IF v_print_order_id IS NULL OR v_print_order_id != v_order_id THEN
+    RAISE EXCEPTION 'Print not found in order';
+  END IF;
+
+  IF trim(p_content) = '' THEN
+    RAISE EXCEPTION 'Comment cannot be empty';
+  END IF;
+
+  INSERT INTO item_comments (print_id, order_id, author_role, author_name, content)
+  VALUES (
+    p_print_id,
+    v_order_id,
+    'customer',
+    COALESCE(NULLIF(trim(p_author_name), ''), 'Customer'),
+    trim(p_content)
+  )
+  RETURNING * INTO v_row;
+
+  RETURN v_row;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION add_item_comment(text, uuid, text, text) TO anon;
+GRANT EXECUTE ON FUNCTION add_item_comment(text, uuid, text, text) TO authenticated;
+
+-- RPC: delete_item_comment (guarded public deletion of the customer's own-role comments)
+CREATE OR REPLACE FUNCTION delete_item_comment(
+  p_order_code text,
+  p_comment_id uuid
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_order_id uuid;
+  v_comment_order_id uuid;
+  v_comment_role text;
+BEGIN
+  SELECT id INTO v_order_id
+  FROM orders
+  WHERE upper(order_code) = upper(trim(p_order_code));
+
+  IF v_order_id IS NULL THEN
+    RAISE EXCEPTION 'Order not found';
+  END IF;
+
+  SELECT order_id, author_role INTO v_comment_order_id, v_comment_role
+  FROM item_comments WHERE id = p_comment_id;
+
+  IF v_comment_order_id IS NULL OR v_comment_order_id != v_order_id THEN
+    RAISE EXCEPTION 'Comment not found in order';
+  END IF;
+
+  IF v_comment_role != 'customer' THEN
+    RAISE EXCEPTION 'Only customer comments can be deleted by customer';
+  END IF;
+
+  DELETE FROM item_comments WHERE id = p_comment_id;
+  RETURN true;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION delete_item_comment(text, uuid) TO anon;
+GRANT EXECUTE ON FUNCTION delete_item_comment(text, uuid) TO authenticated;
+
+-- ==============================================================================
+-- 8. ITEM SUBTASKS (workshop checklist per print part, admin-managed, customer-visible)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS item_subtasks (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  print_id uuid NOT NULL REFERENCES prints(id) ON DELETE CASCADE,
+  order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  title text NOT NULL,
+  completed boolean NOT NULL DEFAULT false,
+  position numeric NOT NULL DEFAULT 1000,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_item_subtasks_print_id ON item_subtasks (print_id, position);
+CREATE INDEX IF NOT EXISTS idx_item_subtasks_order_id ON item_subtasks (order_id);
+
+ALTER TABLE item_subtasks ENABLE ROW LEVEL SECURITY;
+
+-- Only admins (authenticated) can create/edit/delete subtasks; customers can only view them.
+CREATE POLICY "Admin full access on item_subtasks"
+  ON item_subtasks
+  FOR ALL
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Public read item_subtasks"
+  ON item_subtasks
+  FOR SELECT
+  TO anon
+  USING (true);
+
+-- ==============================================================================
+-- 9. REALTIME: make sure the new tables broadcast postgres_changes like prints/orders
+-- ==============================================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'item_comments'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE item_comments;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'item_subtasks'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE item_subtasks;
+  END IF;
+END $$;
+

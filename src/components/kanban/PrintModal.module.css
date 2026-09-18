@@ -133,9 +133,9 @@
   box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.12);
 }
 
-.rowTwo {
+.rowScaleLink {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 110px 1fr;
   gap: 14px;
 }
 
@@ -206,8 +206,6 @@
 }
 
 .modalFooter {
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -293,9 +291,9 @@
     max-height: calc(90dvh - 130px);
   }
 
-  .rowTwo {
-    grid-template-columns: 1fr;
-    gap: 14px;
+  .rowScaleLink {
+    grid-template-columns: 90px 1fr;
+    gap: 10px;
   }
 
   .modalFooter {

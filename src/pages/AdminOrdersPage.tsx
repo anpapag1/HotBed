@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -11,7 +11,8 @@ import {
   Edit2,
   Check,
   X,
-  Upload
+  Upload,
+  Bell,
 } from 'lucide-react';
 import {
   fetchAllOrdersWithSummaries,
@@ -19,9 +20,12 @@ import {
   createOrder,
   updateOrder,
   adminInsertPrint,
+  fetchAllItemComments,
+  subscribeToAllComments,
 } from '../services/orderService';
-import type { OrderSummary, PrintStatus } from '../types/database';
+import type { OrderSummary, PrintStatus, ItemComment } from '../types/database';
 import { Header } from '../components/common/Header';
+import { hasAnyUnreadComments } from '../utils/commentService';
 import styles from './AdminOrdersPage.module.css';
 
 export function AdminOrdersPage() {
@@ -36,7 +40,40 @@ export function AdminOrdersPage() {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const [allComments, setAllComments] = useState<ItemComment[]>([]);
   const navigate = useNavigate();
+
+  // No CommentsDrawer renders on this list page, so 'comments-read' events
+  // never fire here -- the only thing that changes unread state on this
+  // page is new comment rows arriving over the realtime subscription below.
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadComments = () => {
+      fetchAllItemComments()
+        .then((data) => { if (isMounted) setAllComments(data); })
+        .catch((err) => console.error('Failed to load comments:', err));
+    };
+
+    loadComments();
+    const unsubscribe = subscribeToAllComments(loadComments);
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  const unreadOrderIds = useMemo(() => {
+    const ids = new Set<string>();
+    summaries.forEach((summary) => {
+      const printIds = summary.prints.map((p) => p.id);
+      if (hasAnyUnreadComments(allComments, printIds, 'admin')) {
+        ids.add(summary.order.id);
+      }
+    });
+    return ids;
+  }, [summaries, allComments]);
 
   const parseCsv = (csv: string): string[][] => {
     const rows: string[][] = [];
@@ -380,13 +417,21 @@ export function AdminOrdersPage() {
                 month: 'short',
                 day: 'numeric',
               });
+              const hasUnread = unreadOrderIds.has(order.id);
 
               return (
                 <div
                   key={order.id}
-                  className={styles.orderCard}
+                  className={`${styles.orderCard} ${hasUnread ? styles.orderCardUnread : ''}`}
                   onClick={() => navigate(`/admin/order/${order.order_code}`)}
                 >
+                  {hasUnread && (
+                    <span className={styles.orderUnreadBadge} title="Unread comments on this order">
+                      <span className={styles.orderUnreadBadgeRing} />
+                      <Bell size={13} strokeWidth={2.5} />
+                    </span>
+                  )}
+
                   <div className={styles.cardHeader}>
                     <div>
                       <div className={styles.codeBadge}>

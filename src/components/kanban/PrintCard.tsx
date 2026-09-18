@@ -180,7 +180,6 @@ export function PrintCard({
       style={!isOverlay ? dndStyle : undefined}
       {...(isDraggable ? attributes : {})}
       {...(isDraggable ? listeners : {})}
-      className={`${styles.card} ${isOverlay ? styles.overlayCard : ''} ${isDraggable ? styles.draggableCard : ''}`}
       className={`${styles.card} ${isOverlay ? styles.overlayCard : ''} ${isDraggable ? styles.draggableCard : ''} ${isDragging && !isOverlay ? styles.ghostCard : ''}`}
     >
       {/* Top Row: Title + Actions */}

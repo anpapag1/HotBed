@@ -21,7 +21,6 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { Search, Plus, CheckCircle2, SlidersHorizontal, ArrowDown } from 'lucide-react';
 import { Search, Plus, CheckCircle2, SlidersHorizontal } from 'lucide-react';
 import { type PrintItem, type PrintStatus, BOARD_COLUMNS } from '../../types/database';
 import { parseColors } from '../../utils/statusConfig';
@@ -138,7 +137,6 @@ export function KanbanBoard({
   };
 
   // Filter items based on search + active filters + sort
-  const filteredItems = items
   const displayItems = clonedItems ?? items;
   const filteredItems = displayItems
     .filter((item) => {
@@ -224,8 +222,6 @@ export function KanbanBoard({
   };
 
   const handleDragOver = (event: DragOverEvent) => {
-    const overId = event.over?.id as string | undefined;
-    setIsOverMobileTab(Boolean(overId?.startsWith('mobile-tab:')));
     const { active, over } = event;
     if (!over) {
       setIsOverMobileTab(false);
@@ -302,10 +298,8 @@ export function KanbanBoard({
 
   const handleDragEnd = (event: DragEndEvent) => {
     if (readOnly || !isAdmin) return;
-    const { active, over } = event;
     const { active } = event;
     const activeId = active.id as string;
-    const activeItemObj = items.find((i) => i.id === activeId);
 
     const currentCloned = clonedItems;
     const finalItems = currentCloned ?? items;
@@ -316,73 +310,27 @@ export function KanbanBoard({
     setIsOverMobileTab(false);
     setClonedItems(null);
 
-    if (!activeItemObj) return;
     if (!finalItem || !originalItem) return;
 
-    const wasFromDelivered = activeItemObj.status === 'Delivered';
     const wasFromDelivered = originalItem.status === 'Delivered';
 
-    if (!over) {
-      // If dragged from Delivered on mobile and dropped anywhere on the board/screen, drop directly to active tab!
-      if (wasFromDelivered && isMobile && activeMobileTab && onUpdateStatus) {
-        onUpdateStatus(activeId, activeMobileTab);
-        setShowDeliveredSheet(false);
     // If status changed:
     if (finalItem.status !== originalItem.status) {
       if (onUpdateStatus) {
         onUpdateStatus(activeId, finalItem.status);
       }
-      return;
     }
 
-    const rawOverId = over.id as string;
-    const overId = rawOverId.startsWith('mobile-tab:')
-      ? rawOverId.slice('mobile-tab:'.length)
-      : rawOverId;
     // If order changed:
     if (onReorder && currentCloned) {
       onReorder(finalItems);
     }
 
     if (wasFromDelivered) {
-      if (overId === 'Delivered') {
-        // Dropped back onto Delivered FAB -> keep in Delivered and keep sheet open
       if (finalItem.status === 'Delivered') {
         setShowDeliveredSheet(true);
-        return;
       } else {
         setShowDeliveredSheet(false);
-      }
-      // Dropped anywhere else when dragged from Delivered -> close Delivered sheet
-      setShowDeliveredSheet(false);
-    }
-
-    const ALL_COLUMNS: string[] = [...BOARD_COLUMNS, 'Delivered'];
-    const isOverColumn = ALL_COLUMNS.includes(overId);
-
-    // Dropped on a column container or Delivered sidebar/FAB
-    if (isOverColumn) {
-      if (activeItemObj.status !== overId && onUpdateStatus) {
-        onUpdateStatus(activeId, overId as PrintStatus);
-      }
-      return;
-    }
-
-    // Dropped over another card
-    if (activeId !== overId) {
-      const oldIndex = items.findIndex((i) => i.id === activeId);
-      const newIndex = items.findIndex((i) => i.id === overId);
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const targetCard = items[newIndex];
-        if (activeItemObj.status !== targetCard.status) {
-          if (onUpdateStatus) {
-            onUpdateStatus(activeId, targetCard.status);
-          }
-        }
-        const newItems = arrayMove(items, oldIndex, newIndex);
-        if (onReorder) {
-          onReorder(newItems);
-        }
       }
     }
   };
@@ -572,13 +520,6 @@ export function KanbanBoard({
             onTouchStart={handleMobileTouchStart}
             onTouchEnd={handleMobileTouchEnd}
           >
-            {activeItem?.status === 'Delivered' && (
-              <div className={styles.dropToActiveTabBanner}>
-                <ArrowDown size={15} />
-                <span>Drop anywhere to move to <strong>{activeMobileTab}</strong></span>
-              </div>
-            )}
-
             {/* Active column — full natural height, parent scrolls, remounts smoothly on tab change */}
             <KanbanColumn
               key={activeMobileTab}

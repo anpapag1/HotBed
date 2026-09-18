@@ -67,10 +67,23 @@ a {
   text-decoration: none;
 }
 
-/* Custom minimal scrollbar */
+/* Custom minimal scrollbar for scrollable panels (modals, dropdowns, etc). */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
+}
+
+/* The page itself never gets a visible scrollbar: a real one here used to
+   appear/disappear whenever document height crossed the viewport (opening a
+   dropdown, a modal), shifting the entire app sideways by its width. Content
+   stays scrollable, it's just never drawn. */
+html {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar {
+  display: none;
 }
 
 ::-webkit-scrollbar-track {

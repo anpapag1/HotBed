@@ -5,34 +5,48 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CheckCircle2, ChevronRight, ChevronLeft } from 'lucide-react';
-import type { PrintItem, PrintStatus } from '../../types/database';
+import type { PrintItem, PrintStatus, ItemComment, ItemSubtask } from '../../types/database';
 import { PrintCard } from './PrintCard';
 import styles from './DeliveredSidebar.module.css';
 
 interface DeliveredSidebarProps {
   items: PrintItem[];
+  comments?: ItemComment[];
+  subtasks?: ItemSubtask[];
   readOnly?: boolean;
   isAdmin?: boolean;
+  isOver?: boolean;
   onEdit?: (item: PrintItem) => void;
   onDelete?: (id: string) => void;
   onDuplicate?: (item: PrintItem) => void;
   onChangeStatus?: (id: string, newStatus: PrintStatus) => void;
   onOpenComments?: (item: PrintItem) => void;
+  onAddSubtask?: (printId: string, title: string) => void;
+  onToggleSubtask?: (subtaskId: string, completed: boolean) => void;
+  onUpdateSubtaskTitle?: (subtaskId: string, title: string) => void;
+  onDeleteSubtask?: (subtaskId: string) => void;
 }
 
 export function DeliveredSidebar({
   items,
+  comments = [],
+  subtasks = [],
   readOnly = false,
   isAdmin = false,
+  isOver = false,
   onEdit,
   onDelete,
   onDuplicate,
   onChangeStatus,
   onOpenComments,
+  onAddSubtask,
+  onToggleSubtask,
+  onUpdateSubtaskTitle,
+  onDeleteSubtask,
 }: DeliveredSidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const { setNodeRef, isOver } = useDroppable({
+  const { setNodeRef } = useDroppable({
     id: 'Delivered',
     disabled: readOnly || !isAdmin,
   });
@@ -70,6 +84,8 @@ export function DeliveredSidebar({
                   <PrintCard
                     key={item.id}
                     item={item}
+                    threadComments={comments.filter((c) => c.print_id === item.id)}
+                    subtasks={subtasks.filter((s) => s.print_id === item.id)}
                     readOnly={readOnly}
                     isAdmin={isAdmin}
                     onEdit={canEdit ? onEdit : undefined}
@@ -77,6 +93,10 @@ export function DeliveredSidebar({
                     onDuplicate={canEdit ? onDuplicate : undefined}
                     onChangeStatus={isAdmin ? onChangeStatus : undefined}
                     onOpenComments={onOpenComments}
+                    onAddSubtask={onAddSubtask}
+                    onToggleSubtask={onToggleSubtask}
+                    onUpdateSubtaskTitle={onUpdateSubtaskTitle}
+                    onDeleteSubtask={onDeleteSubtask}
                   />
                 );
               })}

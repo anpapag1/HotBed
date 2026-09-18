@@ -4,7 +4,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { Plus } from 'lucide-react';
-import type { PrintItem, PrintStatus } from '../../types/database';
+import type { PrintItem, PrintStatus, ItemComment, ItemSubtask } from '../../types/database';
 import { getStatusConfig, getStatusGradient } from '../../utils/statusConfig';
 import { PrintCard } from './PrintCard';
 import styles from './KanbanColumn.module.css';
@@ -12,31 +12,45 @@ import styles from './KanbanColumn.module.css';
 interface KanbanColumnProps {
   status: PrintStatus;
   items: PrintItem[];
+  comments?: ItemComment[];
+  subtasks?: ItemSubtask[];
   readOnly?: boolean;
   isAdmin?: boolean;
   fullScroll?: boolean;
+  isOver?: boolean;
   onEdit?: (item: PrintItem) => void;
   onDelete?: (id: string) => void;
   onDuplicate?: (item: PrintItem) => void;
   onChangeStatus?: (id: string, newStatus: PrintStatus) => void;
   onAddClick?: (status: PrintStatus) => void;
   onOpenComments?: (item: PrintItem) => void;
+  onAddSubtask?: (printId: string, title: string) => void;
+  onToggleSubtask?: (subtaskId: string, completed: boolean) => void;
+  onUpdateSubtaskTitle?: (subtaskId: string, title: string) => void;
+  onDeleteSubtask?: (subtaskId: string) => void;
 }
 
 export function KanbanColumn({
   status,
   items,
+  comments = [],
+  subtasks = [],
   readOnly = false,
   isAdmin = false,
   fullScroll = false,
+  isOver = false,
   onEdit,
   onDelete,
   onDuplicate,
   onChangeStatus,
   onAddClick,
   onOpenComments,
+  onAddSubtask,
+  onToggleSubtask,
+  onUpdateSubtaskTitle,
+  onDeleteSubtask,
 }: KanbanColumnProps) {
-  const { setNodeRef, isOver } = useDroppable({
+  const { setNodeRef } = useDroppable({
     id: status,
     disabled: readOnly || !isAdmin,
   });
@@ -48,7 +62,7 @@ export function KanbanColumn({
       ref={setNodeRef}
       className={`${styles.column} ${isOver ? styles.columnOver : ''} ${fullScroll ? styles.columnFullScroll : ''}`}
       style={{
-        backgroundImage: isOver ? undefined : getStatusGradient(status),
+        backgroundImage: getStatusGradient(status),
       }}
     >
       {/* Column Header */}
@@ -93,6 +107,8 @@ export function KanbanColumn({
               <PrintCard
                 key={item.id}
                 item={item}
+                threadComments={comments.filter((c) => c.print_id === item.id)}
+                subtasks={subtasks.filter((s) => s.print_id === item.id)}
                 readOnly={!canEdit}
                 isAdmin={isAdmin}
                 onEdit={canEdit ? onEdit : undefined}
@@ -100,6 +116,10 @@ export function KanbanColumn({
                 onDuplicate={canEdit ? onDuplicate : undefined}
                 onChangeStatus={isAdmin ? onChangeStatus : undefined}
                 onOpenComments={onOpenComments}
+                onAddSubtask={onAddSubtask}
+                onToggleSubtask={onToggleSubtask}
+                onUpdateSubtaskTitle={onUpdateSubtaskTitle}
+                onDeleteSubtask={onDeleteSubtask}
               />
             );
           })}
