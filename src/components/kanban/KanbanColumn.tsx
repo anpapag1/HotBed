@@ -14,6 +14,7 @@ interface KanbanColumnProps {
   items: PrintItem[];
   readOnly?: boolean;
   isAdmin?: boolean;
+  fullScroll?: boolean;
   onEdit?: (item: PrintItem) => void;
   onDelete?: (id: string) => void;
   onDuplicate?: (item: PrintItem) => void;
@@ -27,6 +28,7 @@ export function KanbanColumn({
   items,
   readOnly = false,
   isAdmin = false,
+  fullScroll = false,
   onEdit,
   onDelete,
   onDuplicate,
@@ -44,7 +46,7 @@ export function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`${styles.column} ${isOver ? styles.columnOver : ''}`}
+      className={`${styles.column} ${isOver ? styles.columnOver : ''} ${fullScroll ? styles.columnFullScroll : ''}`}
       style={{
         backgroundImage: isOver ? undefined : getStatusGradient(status),
       }}
@@ -66,7 +68,11 @@ export function KanbanColumn({
 
         {!readOnly && onAddClick && (
           <button
-            onClick={() => onAddClick(status)}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddClick(status);
+            }}
             className={styles.btnAdd}
             title={`Add item to ${status}`}
           >

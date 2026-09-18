@@ -1,0 +1,200 @@
+/* MobileTabBar — only visible at ≤768px */
+.tabBarWrapper {
+  display: none; /* hidden by default; shown by media query */
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  align-items: center;
+  gap: 8px;
+  z-index: 200;
+  max-width: calc(100vw - 16px);
+  pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .tabBarWrapper {
+    display: flex;
+  }
+}
+
+.tabBar {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 5px;
+  background: var(--bg-surface-glass);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--border-glass, rgba(255, 255, 255, 0.1));
+  border-radius: 999px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  pointer-events: auto;
+}
+
+/* Delivered FAB next to the tab bar */
+.deliveredFab {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface-glass);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--border-glass, rgba(255, 255, 255, 0.1));
+  color: #22c55e;
+  cursor: pointer;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+  pointer-events: auto;
+}
+
+.deliveredFab:hover {
+  transform: scale(1.06);
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.deliveredFab:active {
+  transform: scale(0.96);
+}
+
+.deliveredFabDropTarget {
+  transform: scale(1.15);
+  background: rgba(34, 197, 94, 0.22) !important;
+  border-color: #22c55e !important;
+  color: #22c55e !important;
+  box-shadow:
+    0 0 22px rgba(34, 197, 94, 0.65),
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    inset 0 0 12px rgba(34, 197, 94, 0.3) !important;
+}
+
+.deliveredFabIcon {
+  line-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 180ms ease, filter 180ms ease;
+  filter: drop-shadow(0 0 4px rgba(34, 197, 94, 0.4));
+}
+
+.deliveredFabDropTarget .deliveredFabIcon {
+  transform: scale(1.12);
+  filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.85));
+}
+
+.deliveredFabBadge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #22c55e;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  border: 2px solid var(--bg-page, #000);
+}
+
+/* Individual tab button */
+.tabBtn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 7px 8px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  min-width: 48px;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+.tabBtn:hover {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Active state — uses --tab-color CSS variable set via inline style */
+.tabBtnActive {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--tab-color, var(--brand-primary)) !important;
+  transform: scale(1.06);
+  box-shadow:
+    0 0 16px color-mix(in srgb, var(--tab-color, #f97316) 30%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.tabBtnDropTarget {
+  color: var(--tab-color, var(--brand-primary));
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 0 0 2px var(--tab-color, var(--brand-primary));
+}
+
+.tabIcon {
+  line-height: 0;
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), filter 180ms ease;
+}
+
+.tabBtnActive .tabIcon {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--tab-color, #f97316) 55%, transparent));
+}
+
+.tabLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+/* Count badge — top-right of the button */
+.tabCount {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  background: var(--tab-color, var(--brand-primary));
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  border-radius: 999px;
+  min-width: 15px;
+  height: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  line-height: 1;
+  border: 1.5px solid var(--bg-page, #000);
+}
+
+/* For inactive buttons, use the muted color for the count */
+.tabBtn:not(.tabBtnActive) .tabCount {
+  background: var(--text-muted);
+}
+

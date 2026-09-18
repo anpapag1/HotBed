@@ -15,6 +15,7 @@ import {
   Plus,
   X,
   MessageSquare,
+  RotateCcw,
 } from 'lucide-react';
 import type { PrintItem, PrintStatus } from '../../types/database';
 import {
@@ -180,6 +181,7 @@ export function PrintCard({
       {...(isDraggable ? attributes : {})}
       {...(isDraggable ? listeners : {})}
       className={`${styles.card} ${isOverlay ? styles.overlayCard : ''} ${isDraggable ? styles.draggableCard : ''}`}
+      className={`${styles.card} ${isOverlay ? styles.overlayCard : ''} ${isDraggable ? styles.draggableCard : ''} ${isDragging && !isOverlay ? styles.ghostCard : ''}`}
     >
       {/* Top Row: Title + Actions */}
       <div className={styles.cardHeader}>
@@ -502,6 +504,23 @@ export function PrintCard({
             >
               <span>Next</span>
               <ChevronRight size={14} />
+            </button>
+          )}
+
+          {/* Quick Return to Finished Button (Admins only) when Delivered */}
+          {!readOnly && isAdmin && onChangeStatus && item.status === 'Delivered' && (
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onChangeStatus(item.id, 'Finished');
+              }}
+              className={styles.btnAdvance}
+              title="Return to Finished"
+            >
+              <RotateCcw size={13} />
+              <span>Return</span>
             </button>
           )}
         </div>

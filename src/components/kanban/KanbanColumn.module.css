@@ -38,6 +38,20 @@
   }
 }
 
+/* Mobile page-oriented mode: parent container scrolls, column fills naturally */
+.columnFullScroll {
+  height: auto !important;
+  max-height: none !important;
+  min-height: calc(100vh - 220px) !important;
+  flex: 1 0 auto !important;
+  min-width: 0 !important;
+}
+
+.columnFullScroll .cardList {
+  overflow: visible;
+  flex: none;
+}
+
 .columnOver {
   background-color: var(--bg-column-hover);
   border-color: var(--brand-primary);
