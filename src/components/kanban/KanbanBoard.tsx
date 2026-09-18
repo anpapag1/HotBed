@@ -404,11 +404,25 @@ export function KanbanBoard({
   const dragEndedAtRef = useRef<number>(0);
   const touchStartXRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
+  const touchStartTimeRef = useRef<number>(0);
+  const isVerticalScrollRef = useRef<boolean>(false);
+  const isHorizontalSwipeRef = useRef<boolean>(false);
+  const [slideDirection, setSlideDirection] = useState<'next' | 'prev' | null>(null);
+
+  const changeMobileTab = (newStatus: PrintStatus) => {
+    if (newStatus === activeMobileTab) return;
+    const currentIndex = BOARD_COLUMNS.indexOf(activeMobileTab);
+    const targetIndex = BOARD_COLUMNS.indexOf(newStatus);
+    setSlideDirection(targetIndex > currentIndex ? 'next' : 'prev');
+    setActiveMobileTab(newStatus);
+  };
 
   const handleDragStart = (event: DragStartEvent) => {
     isDraggingRef.current = true;
     touchStartXRef.current = null;
     touchStartYRef.current = null;
+    isVerticalScrollRef.current = false;
+    isHorizontalSwipeRef.current = false;
     lastOverIdRef.current = null;
     lastCollisionIdRef.current = null;
 
@@ -432,6 +446,8 @@ export function KanbanBoard({
   const handleDragOver = (event: DragOverEvent) => {
     touchStartXRef.current = null;
     touchStartYRef.current = null;
+    isVerticalScrollRef.current = false;
+    isHorizontalSwipeRef.current = false;
 
     if (readOnly || !isAdmin) return;
     const { active, over } = event;
@@ -515,6 +531,10 @@ export function KanbanBoard({
     lastOverIdRef.current = null;
     lastCollisionIdRef.current = null;
     setOverContainer(null);
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+    isVerticalScrollRef.current = false;
+    isHorizontalSwipeRef.current = false;
 
     if (!over || !originalItem) return;
 
@@ -561,6 +581,8 @@ export function KanbanBoard({
     dragEndedAtRef.current = Date.now();
     touchStartXRef.current = null;
     touchStartYRef.current = null;
+    isVerticalScrollRef.current = false;
+    isHorizontalSwipeRef.current = false;
     setActiveItem(null);
     setIsOverMobileTab(false);
     setClonedItems(null);
@@ -625,27 +647,68 @@ export function KanbanBoard({
     setIsModalOpen(false);
   };
 
-  // Swipe gesture support to switch between tabs on mobile (disabled while dragging or interacting with cards)
+  // Swipe gesture support to switch between tabs on mobile
   const handleMobileTouchStart = (e: React.TouchEvent) => {
-    // If currently dragging, or drag just completed, do not track swipe
-    if (activeItem || isDraggingRef.current || Date.now() - dragEndedAtRef.current < 600) {
+    // If currently dragging, or drag just completed, or modal/sheet/drawer is open, ignore
+    if (
+      activeItem ||
+      isDraggingRef.current ||
+      Date.now() - dragEndedAtRef.current < 600 ||
+      showDeliveredSheet ||
+      Boolean(activeCommentItem) ||
+      isModalOpen
+    ) {
       touchStartXRef.current = null;
       touchStartYRef.current = null;
+      isVerticalScrollRef.current = false;
+      isHorizontalSwipeRef.current = false;
       return;
     }
 
-    // Never track swipe if touch starts on a card or interactive element (cards are for dragging/editing)
+    // Never track swipe if touch starts on an interactive element (buttons, links, inputs)
     const target = e.target as HTMLElement | null;
-    if (target?.closest('[data-card="true"], button, a, input, textarea')) {
+    if (target?.closest('button, a, input, textarea, select, [role="button"]')) {
       touchStartXRef.current = null;
       touchStartYRef.current = null;
+      isVerticalScrollRef.current = false;
+      isHorizontalSwipeRef.current = false;
       return;
     }
 
-    // Only track single-finger gestures on empty column/board background
+    // Track single-finger gesture
     if (e.touches.length === 1) {
       touchStartXRef.current = e.touches[0].clientX;
       touchStartYRef.current = e.touches[0].clientY;
+      touchStartTimeRef.current = Date.now();
+      isVerticalScrollRef.current = false;
+      isHorizontalSwipeRef.current = false;
+    }
+  };
+
+  const handleMobileTouchMove = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+    if (activeItem || isDraggingRef.current) {
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
+      return;
+    }
+
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const diffX = currentX - touchStartXRef.current;
+    const diffY = currentY - touchStartYRef.current;
+
+    // Detect gesture direction early
+    if (!isVerticalScrollRef.current && !isHorizontalSwipeRef.current) {
+      const absX = Math.abs(diffX);
+      const absY = Math.abs(diffY);
+      if (absY > 8 && absY > absX) {
+        // Vertical scrolling dominates: lock out horizontal swipe
+        isVerticalScrollRef.current = true;
+      } else if (absX > 8 && absX > absY) {
+        // Horizontal swipe dominates
+        isHorizontalSwipeRef.current = true;
+      }
     }
   };
 
@@ -655,31 +718,51 @@ export function KanbanBoard({
       touchStartYRef.current === null ||
       activeItem ||
       isDraggingRef.current ||
-      Date.now() - dragEndedAtRef.current < 600
+      Date.now() - dragEndedAtRef.current < 600 ||
+      isVerticalScrollRef.current
     ) {
       touchStartXRef.current = null;
       touchStartYRef.current = null;
+      isVerticalScrollRef.current = false;
+      isHorizontalSwipeRef.current = false;
       return;
     }
+
     const endX = e.changedTouches[0]?.clientX ?? touchStartXRef.current;
     const endY = e.changedTouches[0]?.clientY ?? touchStartYRef.current;
     const diffX = endX - touchStartXRef.current;
     const diffY = endY - touchStartYRef.current;
+    const elapsed = Date.now() - touchStartTimeRef.current;
 
     touchStartXRef.current = null;
     touchStartYRef.current = null;
+    isVerticalScrollRef.current = false;
+    isHorizontalSwipeRef.current = false;
 
-    // Minimum 50px horizontal delta and mostly horizontal
-    if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) * 1.5) {
+    const absX = Math.abs(diffX);
+    const absY = Math.abs(diffY);
+
+    // Natural thumb swipe criteria:
+    // - Travelled at least 35px horizontally
+    // - Horizontally dominant (absX > absY * 1.1)
+    // - Performed within 600ms (quick flick/swipe)
+    if (absX >= 35 && absX > absY * 1.1 && elapsed < 600) {
       const currentIndex = BOARD_COLUMNS.indexOf(activeMobileTab);
       if (diffX < 0 && currentIndex < BOARD_COLUMNS.length - 1) {
         // Swiped left -> Next tab
-        setActiveMobileTab(BOARD_COLUMNS[currentIndex + 1]);
+        changeMobileTab(BOARD_COLUMNS[currentIndex + 1]);
       } else if (diffX > 0 && currentIndex > 0) {
         // Swiped right -> Previous tab
-        setActiveMobileTab(BOARD_COLUMNS[currentIndex - 1]);
+        changeMobileTab(BOARD_COLUMNS[currentIndex - 1]);
       }
     }
+  };
+
+  const handleMobileTouchCancel = () => {
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+    isVerticalScrollRef.current = false;
+    isHorizontalSwipeRef.current = false;
   };
 
   return (
@@ -768,34 +851,40 @@ export function KanbanBoard({
           <div
             className={styles.mobileBoard}
             onTouchStart={handleMobileTouchStart}
+            onTouchMove={handleMobileTouchMove}
             onTouchEnd={handleMobileTouchEnd}
+            onTouchCancel={handleMobileTouchCancel}
           >
-            {/* Active column — full natural height, parent scrolls, remounts smoothly on tab change */}
-            <KanbanColumn
+            {/* Active column with smooth directional slide transition */}
+            <div
               key={activeMobileTab}
-              status={activeMobileTab}
-              items={filteredItems.filter((i) => i.status === activeMobileTab)}
-              comments={comments}
-              subtasks={subtasks}
-              readOnly={readOnly}
-              isAdmin={isAdmin}
-              fullScroll
-              isOver={overContainer === activeMobileTab}
-              onEdit={handleEditClick}
-              onDelete={onDeletePrint}
-              onDuplicate={handleDuplicateClick}
-              onChangeStatus={isAdmin ? onUpdateStatus : undefined}
-              onAddClick={
-                isAdmin || activeMobileTab === 'Not Started'
-                  ? handleAddClick
-                  : undefined
-              }
-              onOpenComments={(item) => setActiveCommentItem(item)}
-              onAddSubtask={handleAddSubtask}
-              onToggleSubtask={handleToggleSubtask}
-              onUpdateSubtaskTitle={handleUpdateSubtaskTitle}
-              onDeleteSubtask={handleDeleteSubtask}
-            />
+              className={`${styles.mobileSlideContainer} ${slideDirection === 'next' ? styles.slideNext : slideDirection === 'prev' ? styles.slidePrev : ''}`}
+            >
+              <KanbanColumn
+                status={activeMobileTab}
+                items={filteredItems.filter((i) => i.status === activeMobileTab)}
+                comments={comments}
+                subtasks={subtasks}
+                readOnly={readOnly}
+                isAdmin={isAdmin}
+                fullScroll
+                isOver={overContainer === activeMobileTab}
+                onEdit={handleEditClick}
+                onDelete={onDeletePrint}
+                onDuplicate={handleDuplicateClick}
+                onChangeStatus={isAdmin ? onUpdateStatus : undefined}
+                onAddClick={
+                  isAdmin || activeMobileTab === 'Not Started'
+                    ? handleAddClick
+                    : undefined
+                }
+                onOpenComments={(item) => setActiveCommentItem(item)}
+                onAddSubtask={handleAddSubtask}
+                onToggleSubtask={handleToggleSubtask}
+                onUpdateSubtaskTitle={handleUpdateSubtaskTitle}
+                onDeleteSubtask={handleDeleteSubtask}
+              />
+            </div>
           </div>
         ) : (
           /* ── DESKTOP VIEW: horizontal multi-column layout ── */
@@ -852,7 +941,7 @@ export function KanbanBoard({
           <MobileTabBar
             activeTab={activeMobileTab}
             counts={tabCounts}
-            onTabChange={setActiveMobileTab}
+            onTabChange={changeMobileTab}
             deliveredCount={deliveredItems.length}
             onOpenDelivered={() => setShowDeliveredSheet(true)}
             isDragging={Boolean(activeItem)}

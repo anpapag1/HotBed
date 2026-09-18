@@ -321,6 +321,46 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* Container for animated mobile slide transitions */
+.mobileSlideContainer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  will-change: transform, opacity;
+}
+
+@keyframes slideNextEntrance {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slidePrevEntrance {
+  from {
+    opacity: 0;
+    transform: translateX(-32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.slideNext {
+  animation: slideNextEntrance 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.slidePrev {
+  animation: slidePrevEntrance 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 .dropToActiveTabBanner {
   display: flex;
   align-items: center;

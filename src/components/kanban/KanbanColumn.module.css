@@ -45,6 +45,7 @@
   min-height: calc(100vh - 220px) !important;
   flex: 1 0 auto !important;
   min-width: 0 !important;
+  animation: none !important;
 }
 
 .columnFullScroll .cardList {
