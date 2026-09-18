@@ -714,7 +714,7 @@ export function KanbanBoard({
 
 
         {/* Mobile Floating Tab Bar stays inside DndContext so tabs can receive drops */}
-        {isMobile && (
+        {isMobile && !activeCommentItem && (
           <MobileTabBar
             activeTab={activeMobileTab}
             counts={tabCounts}

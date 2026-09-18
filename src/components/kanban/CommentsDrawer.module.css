@@ -7,7 +7,7 @@
   background-color: rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  z-index: 40;
+  z-index: 700;
   display: flex;
   justify-content: flex-end;
   animation: fadeIn 180ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -32,12 +32,12 @@
   animation: slideLeft 220ms cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
   position: relative;
-  z-index: 41;
+  z-index: 701;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .drawerOverlay {
-    top: 58px;
+    top: 0;
   }
 
   .drawer {
@@ -47,6 +47,7 @@
 
   .header {
     padding: 14px 16px;
+    padding-top: calc(14px + env(safe-area-inset-top, 0px));
   }
 
   .feed {
@@ -54,7 +55,7 @@
   }
 
   .composer {
-    padding: 12px 14px;
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
   }
 }
 
