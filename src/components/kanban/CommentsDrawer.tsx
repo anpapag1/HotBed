@@ -63,20 +63,19 @@ export function CommentsDrawer({
 
   // Mark the other side's comments read as soon as this item's drawer is open,
   // and again whenever a new comment arrives while it's still open.
-  // For admins, also mark unseen customer comments as seen in Supabase.
+  // Marks unseen comments from the other role as seen in Supabase.
   useEffect(() => {
     if (isOpen && item) {
       markItemCommentsRead(item.id, currentUserRole, comments);
-      if (currentUserRole === 'admin') {
-        const hasUnseen = comments.some(
-          (c) => c.print_id === item.id && c.author_role === 'customer' && !c.has_been_seen
+      const otherRole = currentUserRole === 'admin' ? 'customer' : 'admin';
+      const hasUnseen = comments.some(
+        (c) => c.print_id === item.id && c.author_role?.toLowerCase() === otherRole && !c.has_been_seen
+      );
+      if (hasUnseen) {
+        onCommentsSeen?.(item.id);
+        markCommentsSeen(item.id).catch((err) =>
+          console.error('Failed to mark comments as seen in Supabase:', err)
         );
-        if (hasUnseen) {
-          onCommentsSeen?.(item.id);
-          markCommentsSeen(item.id).catch((err) =>
-            console.error('Failed to mark comments as seen in Supabase:', err)
-          );
-        }
       }
     }
   }, [isOpen, item, currentUserRole, comments, onCommentsSeen]);

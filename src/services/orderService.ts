@@ -399,7 +399,7 @@ export async function addAdminComment(
         author_role: 'admin',
         author_name: authorName.trim() || 'Workshop Admin',
         content: content.trim(),
-        has_been_seen: true,
+        has_been_seen: false,
       },
     ])
     .select()

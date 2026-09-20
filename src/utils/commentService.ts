@@ -38,28 +38,35 @@ export function markItemCommentsRead(
   }
 }
 
-// Unread = comments from the other role, posted after this viewer's last read.
-// For admins, this checks whether customer comments have has_been_seen = false in Supabase.
-// `comments` must already be filtered to the item and sorted oldest-first (for customer view).
+// Unread = comments from the other role that have has_been_seen = false in Supabase.
+// If has_been_seen is true in Supabase, the comment is considered seen/read.
 export function getUnreadCommentCount(
   itemId: string,
   role: 'admin' | 'customer',
   comments: ItemComment[]
 ): number {
-  if (role === 'admin') {
-    return comments.filter(
-      (c) =>
-        c.print_id === itemId &&
-        c.author_role?.toLowerCase() === 'customer' &&
-        !c.has_been_seen
-    ).length;
+  const otherRole = role === 'admin' ? 'customer' : 'admin';
+
+  // Only consider comments from the other role that have NOT been seen (has_been_seen === false in Supabase)
+  const unseen = comments.filter(
+    (c) =>
+      c.print_id === itemId &&
+      c.author_role?.toLowerCase() === otherRole &&
+      !c.has_been_seen
+  );
+
+  if (unseen.length === 0) return 0;
+
+  // Watermark check: if locally read in this device's storage, honor that as well
+  const lastReadId = getLastReadCommentId(itemId, role);
+  if (lastReadId) {
+    const lastReadIndex = unseen.findIndex((c) => c.id === lastReadId);
+    if (lastReadIndex !== -1) {
+      return unseen.slice(lastReadIndex + 1).length;
+    }
   }
 
-  const lastReadId = getLastReadCommentId(itemId, role);
-  const lastReadIndex = lastReadId ? comments.findIndex((c) => c.id === lastReadId) : -1;
-  const unseen = lastReadIndex === -1 ? comments : comments.slice(lastReadIndex + 1);
-
-  return unseen.filter((c) => c.author_role?.toLowerCase() !== role.toLowerCase()).length;
+  return unseen.length;
 }
 
 export function hasUnreadComments(
@@ -67,14 +74,6 @@ export function hasUnreadComments(
   role: 'admin' | 'customer',
   comments: ItemComment[]
 ): boolean {
-  if (role === 'admin') {
-    return comments.some(
-      (c) =>
-        c.print_id === itemId &&
-        c.author_role?.toLowerCase() === 'customer' &&
-        !c.has_been_seen
-    );
-  }
   return getUnreadCommentCount(itemId, role, comments) > 0;
 }
 
@@ -83,17 +82,12 @@ export function hasAnyUnreadComments(
   printIds: string[],
   role: 'admin' | 'customer'
 ): boolean {
-  if (role === 'admin') {
-    const printIdSet = new Set(printIds);
-    return comments.some(
-      (c) =>
-        printIdSet.has(c.print_id) &&
-        c.author_role?.toLowerCase() === 'customer' &&
-        !c.has_been_seen
-    );
-  }
-
-  return printIds.some((printId) =>
-    hasUnreadComments(printId, role, comments.filter((c) => c.print_id === printId))
+  const printIdSet = new Set(printIds);
+  const otherRole = role === 'admin' ? 'customer' : 'admin';
+  return comments.some(
+    (c) =>
+      printIdSet.has(c.print_id) &&
+      c.author_role?.toLowerCase() === otherRole &&
+      !c.has_been_seen
   );
 }
