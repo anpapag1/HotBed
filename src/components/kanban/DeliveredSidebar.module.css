@@ -82,6 +82,27 @@
   transition: all var(--transition-fast);
 }
 
+.deliveredUnreadDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.8);
+  animation: unreadPulse 1.8s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes unreadPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.75;
+  }
+}
+
 .toggleBtn {
   width: 28px;
   height: 28px;

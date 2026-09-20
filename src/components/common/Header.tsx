@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Sun, Moon, Laptop, Check, LogOut, LayoutGrid, WifiOff } from 'lucide-react';
+import { Sun, Moon, Laptop, Check, LogOut, LayoutGrid, WifiOff, Copy } from 'lucide-react';
 import { useTheme, type ThemeMode } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { isSupabaseConfigured } from '../../lib/supabase';
+import { copyTextToClipboard, getOrderShareUrl } from '../../utils/clipboard';
 import styles from './Header.module.css';
 
 interface HeaderProps {
@@ -42,6 +43,19 @@ export function Header({ orderCode, customerName, isAdminArea }: HeaderProps) {
     setIsThemeMenuOpen(false);
   };
 
+  const [copiedHeaderOrder, setCopiedHeaderOrder] = useState(false);
+
+  const handleHeaderCopyOrder = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!orderCode) return;
+    const shareUrl = getOrderShareUrl(orderCode);
+    const ok = await copyTextToClipboard(shareUrl);
+    if (ok) {
+      setCopiedHeaderOrder(true);
+      setTimeout(() => setCopiedHeaderOrder(false), 2000);
+    }
+  };
+
   return (
     <header className={styles.header}>
       <Link to={isAuthenticated ? '/admin/orders' : '/'} className={styles.brandLink}>
@@ -63,10 +77,32 @@ export function Header({ orderCode, customerName, isAdminArea }: HeaderProps) {
         )}
 
         {orderCode && (
-          <div className={styles.orderBadge} title={customerName ? `Order for ${customerName}` : undefined}>
-            <span className={styles.codeDot}></span>
-            <span>Order #{orderCode}</span>
-            {customerName && <span className={styles.customerName}>• {customerName}</span>}
+          <div className={styles.orderBadgeWrap}>
+            <div className={styles.orderBadge} title={customerName ? `Order for ${customerName}` : undefined}>
+              <span className={styles.codeDot}></span>
+              <span className={styles.orderLabel}>Order </span>
+              <span className={styles.orderCode}>#{orderCode}</span>
+              {customerName && <span className={styles.customerName}>• {customerName}</span>}
+            </div>
+            <button
+              type="button"
+              className={`${styles.headerCopyBtn} ${copiedHeaderOrder ? styles.headerCopyBtnCopied : ''}`}
+              onClick={handleHeaderCopyOrder}
+              title={`Copy link for order #${orderCode}`}
+              aria-label="Copy order link"
+            >
+              {copiedHeaderOrder ? (
+                <>
+                  <Check size={12} color="#22c55e" />
+                  <span>Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy size={12} />
+                  <span>Copy</span>
+                </>
+              )}
+            </button>
           </div>
         )}
 

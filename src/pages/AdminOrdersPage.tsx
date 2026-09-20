@@ -13,23 +13,30 @@ import {
   X,
   Upload,
   Bell,
+  Trash2,
+  Copy,
 } from 'lucide-react';
 import {
   fetchAllOrdersWithSummaries,
   fetchOrderByCode,
   createOrder,
   updateOrder,
+  deleteOrder,
   adminInsertPrint,
   fetchAllItemComments,
   subscribeToAllComments,
+  subscribeToAllOrdersAndPrints,
 } from '../services/orderService';
-import type { OrderSummary, PrintStatus, ItemComment } from '../types/database';
+import type { Order, OrderSummary, PrintStatus, ItemComment } from '../types/database';
 import { Header } from '../components/common/Header';
+import { DeleteConfirmModal } from '../components/kanban/DeleteConfirmModal';
 import { hasAnyUnreadComments } from '../utils/commentService';
+import { copyTextToClipboard, getOrderShareUrl } from '../utils/clipboard';
 import styles from './AdminOrdersPage.module.css';
 
 export function AdminOrdersPage() {
   const [summaries, setSummaries] = useState<OrderSummary[]>([]);
+  const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
@@ -38,6 +45,7 @@ export function AdminOrdersPage() {
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [editingCustomerName, setEditingCustomerName] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [deletingOrder, setDeletingOrder] = useState<Order | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
   const [allComments, setAllComments] = useState<ItemComment[]>([]);
@@ -58,9 +66,22 @@ export function AdminOrdersPage() {
     loadComments();
     const unsubscribe = subscribeToAllComments(loadComments);
 
+    const handleSync = () => {
+      if (!document.hidden) {
+        loadComments();
+      }
+    };
+
+    window.addEventListener('focus', handleSync);
+    document.addEventListener('visibilitychange', handleSync);
+    const interval = setInterval(handleSync, 6000);
+
     return () => {
       isMounted = false;
       unsubscribe();
+      window.removeEventListener('focus', handleSync);
+      document.removeEventListener('visibilitychange', handleSync);
+      clearInterval(interval);
     };
   }, []);
 
@@ -180,11 +201,38 @@ export function AdminOrdersPage() {
     };
 
     fetchAll();
+    const unsubscribe = subscribeToAllOrdersAndPrints(fetchAll);
+
+    const handleSync = () => {
+      if (!document.hidden) {
+        fetchAll();
+      }
+    };
+
+    window.addEventListener('focus', handleSync);
+    document.addEventListener('visibilitychange', handleSync);
+    const interval = setInterval(handleSync, 6000);
 
     return () => {
       isMounted = false;
+      unsubscribe();
+      window.removeEventListener('focus', handleSync);
+      document.removeEventListener('visibilitychange', handleSync);
+      clearInterval(interval);
     };
   }, []);
+
+  const handleConfirmDelete = async () => {
+    if (!deletingOrder) return;
+    try {
+      await deleteOrder(deletingOrder.id);
+      setSummaries((prev) => prev.filter((s) => s.order.id !== deletingOrder.id));
+      setDeletingOrder(null);
+    } catch (err) {
+      console.error('Failed to delete order:', err);
+      alert('Failed to delete order. Please check your network and try again.');
+    }
+  };
 
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -523,6 +571,27 @@ export function AdminOrdersPage() {
                     <div className={styles.footerActions}>
                       <button
                         type="button"
+                        className={`${styles.btnActionIcon} ${copiedOrderId === order.id ? styles.btnCopyCopied : ''}`}
+                        aria-label={`Copy link for order ${order.order_code}`}
+                        title={copiedOrderId === order.id ? 'Copied!' : 'Copy order link'}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const url = getOrderShareUrl(order.order_code);
+                          const ok = await copyTextToClipboard(url);
+                          if (ok) {
+                            setCopiedOrderId(order.id);
+                            setTimeout(() => setCopiedOrderId(null), 2000);
+                          }
+                        }}
+                      >
+                        {copiedOrderId === order.id ? (
+                          <Check size={14} color="#22c55e" />
+                        ) : (
+                          <Copy size={14} />
+                        )}
+                      </button>
+                      <button
+                        type="button"
                         className={styles.btnActionIcon}
                         aria-label={`Edit ${order.order_code}`}
                         title="Edit order"
@@ -532,6 +601,18 @@ export function AdminOrdersPage() {
                         }}
                       >
                         <Edit2 size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.btnActionIcon} ${styles.btnDeleteOrder}`}
+                        aria-label={`Delete order ${order.order_code}`}
+                        title="Delete order"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingOrder(order);
+                        }}
+                      >
+                        <Trash2 size={14} />
                       </button>
                       <Link
                         to={`/admin/order/${order.order_code}`}
@@ -550,6 +631,14 @@ export function AdminOrdersPage() {
           </div>
         )}
       </div>
+
+      <DeleteConfirmModal
+        isOpen={Boolean(deletingOrder)}
+        title={`Delete Order #${deletingOrder?.order_code}`}
+        message={`Are you sure you want to delete order #${deletingOrder?.order_code}${deletingOrder?.customer_name ? ` for ${deletingOrder.customer_name}` : ''}? This will permanently remove all associated print parts, subtasks, and comments.`}
+        onCancel={() => setDeletingOrder(null)}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

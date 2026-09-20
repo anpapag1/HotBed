@@ -6,6 +6,7 @@ import {
 import { Plus } from 'lucide-react';
 import type { PrintItem, PrintStatus, ItemComment, ItemSubtask } from '../../types/database';
 import { getStatusConfig, getStatusGradient } from '../../utils/statusConfig';
+import { hasUnreadComments } from '../../utils/commentService';
 import { PrintCard } from './PrintCard';
 import styles from './KanbanColumn.module.css';
 
@@ -21,6 +22,7 @@ interface KanbanColumnProps {
   onEdit?: (item: PrintItem) => void;
   onDelete?: (id: string) => void;
   onDuplicate?: (item: PrintItem) => void;
+  onSplitCard?: (item: PrintItem) => void;
   onChangeStatus?: (id: string, newStatus: PrintStatus) => void;
   onAddClick?: (status: PrintStatus) => void;
   onOpenComments?: (item: PrintItem) => void;
@@ -28,6 +30,8 @@ interface KanbanColumnProps {
   onToggleSubtask?: (subtaskId: string, completed: boolean) => void;
   onUpdateSubtaskTitle?: (subtaskId: string, title: string) => void;
   onDeleteSubtask?: (subtaskId: string) => void;
+  highlightedCardId?: string | null;
+  orderCode?: string;
 }
 
 export function KanbanColumn({
@@ -39,9 +43,12 @@ export function KanbanColumn({
   isAdmin = false,
   fullScroll = false,
   isOver = false,
+  highlightedCardId,
+  orderCode,
   onEdit,
   onDelete,
   onDuplicate,
+  onSplitCard,
   onChangeStatus,
   onAddClick,
   onOpenComments,
@@ -56,6 +63,14 @@ export function KanbanColumn({
   });
 
   const statusConfig = getStatusConfig(status);
+  const viewerRole = isAdmin ? 'admin' : 'customer';
+  const hasColumnUnread = items.some((item) =>
+    hasUnreadComments(
+      item.id,
+      viewerRole,
+      comments.filter((c) => c.print_id === item.id)
+    )
+  );
 
   return (
     <div
@@ -78,6 +93,12 @@ export function KanbanColumn({
           <span className={styles.countBadge}>
             {items.length}
           </span>
+          {hasColumnUnread && (
+            <span
+              className={styles.columnUnreadDot}
+              title="Unread comments in this column"
+            />
+          )}
         </div>
 
         {!readOnly && onAddClick && (
@@ -111,9 +132,12 @@ export function KanbanColumn({
                 subtasks={subtasks.filter((s) => s.print_id === item.id)}
                 readOnly={!canEdit}
                 isAdmin={isAdmin}
+                isHighlighted={highlightedCardId === item.id}
+                orderCode={orderCode}
                 onEdit={canEdit ? onEdit : undefined}
                 onDelete={canEdit ? onDelete : undefined}
                 onDuplicate={canEdit ? onDuplicate : undefined}
+                onSplitCard={isAdmin ? onSplitCard : undefined}
                 onChangeStatus={isAdmin ? onChangeStatus : undefined}
                 onOpenComments={onOpenComments}
                 onAddSubtask={onAddSubtask}

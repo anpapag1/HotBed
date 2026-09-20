@@ -48,12 +48,36 @@ export function CustomerOrderPage() {
         setPrints(printsData);
         setLoading(false);
 
+        const refreshPrints = async () => {
+          try {
+            const freshPrints = await fetchPrintsForOrder(orderData.id);
+            if (!isMounted) return;
+            startTransition(() => {
+              setPrints(freshPrints);
+            });
+          } catch (err) {
+            console.error('Failed to sync prints:', err);
+          }
+        };
+
         // Subscribe to real-time changes
-        unsubscribe = subscribeToPrintsForOrder(orderData.id, async () => {
-          const freshPrints = await fetchPrintsForOrder(orderData.id);
-          startTransition(() => {
-            setPrints(freshPrints);
-          });
+        unsubscribe = subscribeToPrintsForOrder(orderData.id, refreshPrints);
+
+        // Fallback sync: every 5s when visible, and immediately on tab focus
+        const handleSync = () => {
+          if (!document.hidden) {
+            refreshPrints();
+          }
+        };
+
+        window.addEventListener('focus', handleSync);
+        document.addEventListener('visibilitychange', handleSync);
+        const pollInterval = setInterval(handleSync, 5000);
+
+        cleanups.push(() => {
+          window.removeEventListener('focus', handleSync);
+          document.removeEventListener('visibilitychange', handleSync);
+          clearInterval(pollInterval);
         });
       } catch (err) {
         if (!isMounted) return;
@@ -62,11 +86,13 @@ export function CustomerOrderPage() {
       }
     };
 
+    const cleanups: (() => void)[] = [];
     loadOrderAndPrints();
 
     return () => {
       isMounted = false;
       if (unsubscribe) unsubscribe();
+      cleanups.forEach((fn) => fn());
     };
   }, [code]);
 
@@ -161,6 +187,16 @@ export function CustomerOrderPage() {
     );
   }
 
+  const handleRefreshPrints = async () => {
+    if (!order) return;
+    try {
+      const freshPrints = await fetchPrintsForOrder(order.id);
+      setPrints(freshPrints);
+    } catch (err) {
+      console.error('Customer refresh error:', err);
+    }
+  };
+
   return (
     <div className={styles.pageContainer}>
       <Header
@@ -177,7 +213,7 @@ export function CustomerOrderPage() {
         onAddPrint={handleAddPrintRPC}
         onUpdatePrint={handleUpdatePrintRPC}
         onDeletePrint={handleDeletePrintRPC}
-        customerScroll
+        onRefreshPrints={handleRefreshPrints}
         pageTitle={`Order #${order.order_code}`}
         pageSubtitle={`Live 3D Print Pipeline for ${order.customer_name || 'Customer'} (${prints.length} items)`}
       />

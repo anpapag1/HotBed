@@ -48,7 +48,10 @@ export function getUnreadCommentCount(
 ): number {
   if (role === 'admin') {
     return comments.filter(
-      (c) => c.print_id === itemId && c.author_role === 'customer' && !c.has_been_seen
+      (c) =>
+        c.print_id === itemId &&
+        c.author_role?.toLowerCase() === 'customer' &&
+        !c.has_been_seen
     ).length;
   }
 
@@ -56,7 +59,7 @@ export function getUnreadCommentCount(
   const lastReadIndex = lastReadId ? comments.findIndex((c) => c.id === lastReadId) : -1;
   const unseen = lastReadIndex === -1 ? comments : comments.slice(lastReadIndex + 1);
 
-  return unseen.filter((c) => c.author_role !== role).length;
+  return unseen.filter((c) => c.author_role?.toLowerCase() !== role.toLowerCase()).length;
 }
 
 export function hasUnreadComments(
@@ -66,7 +69,10 @@ export function hasUnreadComments(
 ): boolean {
   if (role === 'admin') {
     return comments.some(
-      (c) => c.print_id === itemId && c.author_role === 'customer' && !c.has_been_seen
+      (c) =>
+        c.print_id === itemId &&
+        c.author_role?.toLowerCase() === 'customer' &&
+        !c.has_been_seen
     );
   }
   return getUnreadCommentCount(itemId, role, comments) > 0;
@@ -80,7 +86,10 @@ export function hasAnyUnreadComments(
   if (role === 'admin') {
     const printIdSet = new Set(printIds);
     return comments.some(
-      (c) => printIdSet.has(c.print_id) && c.author_role === 'customer' && !c.has_been_seen
+      (c) =>
+        printIdSet.has(c.print_id) &&
+        c.author_role?.toLowerCase() === 'customer' &&
+        !c.has_been_seen
     );
   }
 

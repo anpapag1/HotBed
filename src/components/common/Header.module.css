@@ -117,6 +117,42 @@
   margin-left: 2px;
 }
 
+.orderBadgeWrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.headerCopyBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background-color: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-xs);
+  white-space: nowrap;
+}
+
+.headerCopyBtn:hover {
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+  background-color: var(--bg-surface-hover);
+}
+
+.headerCopyBtnCopied {
+  border-color: #22c55e !important;
+  color: #22c55e !important;
+  background-color: rgba(34, 197, 94, 0.12) !important;
+}
+
 .themeMenuWrapper {
   position: relative;
 }
@@ -279,6 +315,9 @@
     padding: 0 16px;
   }
   .customerName {
+    display: none;
+  }
+  .orderLabel {
     display: none;
   }
 }

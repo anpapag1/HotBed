@@ -47,11 +47,34 @@ export function AdminOrderBoardPage() {
         setPrints(printsData);
         setLoading(false);
 
-        unsubscribe = subscribeToPrintsForOrder(orderData.id, async () => {
-          const freshPrints = await fetchPrintsForOrder(orderData.id);
-          startTransition(() => {
-            setPrints(freshPrints);
-          });
+        const refreshPrints = async () => {
+          try {
+            const freshPrints = await fetchPrintsForOrder(orderData.id);
+            if (!isMounted) return;
+            startTransition(() => {
+              setPrints(freshPrints);
+            });
+          } catch (err) {
+            console.error('Failed to sync prints:', err);
+          }
+        };
+
+        unsubscribe = subscribeToPrintsForOrder(orderData.id, refreshPrints);
+
+        const handleSync = () => {
+          if (!document.hidden) {
+            refreshPrints();
+          }
+        };
+
+        window.addEventListener('focus', handleSync);
+        document.addEventListener('visibilitychange', handleSync);
+        const pollInterval = setInterval(handleSync, 5000);
+
+        cleanups.push(() => {
+          window.removeEventListener('focus', handleSync);
+          document.removeEventListener('visibilitychange', handleSync);
+          clearInterval(pollInterval);
         });
       } catch (err) {
         if (!isMounted) return;
@@ -60,11 +83,13 @@ export function AdminOrderBoardPage() {
       }
     };
 
+    const cleanups: (() => void)[] = [];
     loadOrderAndPrints();
 
     return () => {
       isMounted = false;
       if (unsubscribe) unsubscribe();
+      cleanups.forEach((fn) => fn());
     };
   }, [code]);
 
@@ -132,6 +157,18 @@ export function AdminOrderBoardPage() {
     }
   };
 
+  const handleRefreshPrints = async () => {
+    if (!order) return;
+    try {
+      const freshPrints = await fetchPrintsForOrder(order.id);
+      startTransition(() => {
+        setPrints(freshPrints);
+      });
+    } catch (err) {
+      console.error('Failed to refresh prints:', err);
+    }
+  };
+
   if (loading) {
     return (
       <div className={styles.pageContainer}>
@@ -183,6 +220,7 @@ export function AdminOrderBoardPage() {
         onAddPrint={handleAddPrint}
         onUpdatePrint={handleUpdatePrint}
         onDeletePrint={handleDeletePrint}
+        onRefreshPrints={handleRefreshPrints}
         pageTitle="Production Pipeline"
         pageSubtitle={`Admin Control for Order #${order.order_code} • ${order.customer_name || 'Client'} (${prints.length} items)`}
       />

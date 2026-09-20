@@ -314,23 +314,33 @@ export async function updatePrintOrder(items: { id: string; position: number }[]
 }
 
 export function subscribeToPrintsForOrder(orderId: string, callback: () => void): () => void {
-  const client = requireSupabase();
+  if (!isSupabaseConfigured || !supabase) return () => {};
+  const client = supabase;
+  const channelName = `prints:${orderId}:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
 
   const channel = client
-    .channel('prints:' + orderId)
+    .channel(channelName)
     .on(
       'postgres_changes',
       {
         event: '*',
         schema: 'public',
         table: 'prints',
-        filter: 'order_id=eq.' + orderId,
       },
-      () => {
-        callback();
+      (payload) => {
+        const newOrderId = (payload.new as Record<string, unknown> | undefined)?.order_id;
+        const oldOrderId = (payload.old as Record<string, unknown> | undefined)?.order_id;
+        if (!newOrderId && !oldOrderId) {
+          // Row deleted or updated where order_id was not in WAL: refresh to ensure sync
+          callback();
+        } else if (newOrderId === orderId || oldOrderId === orderId) {
+          callback();
+        }
       }
     )
-    .subscribe();
+    .subscribe((status, err) => {
+      if (err) console.warn('[Realtime:prints] Subscription status:', status, err);
+    });
 
   return () => {
     client.removeChannel(channel);
@@ -467,16 +477,28 @@ export async function deleteCustomerCommentViaRPC(
 }
 
 export function subscribeToCommentsForOrder(orderId: string, callback: () => void): () => void {
-  const client = requireSupabase();
+  if (!isSupabaseConfigured || !supabase) return () => {};
+  const client = supabase;
+  const channelName = `item_comments:${orderId}:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
 
   const channel = client
-    .channel('item_comments:' + orderId)
+    .channel(channelName)
     .on(
       'postgres_changes',
-      { event: '*', schema: 'public', table: 'item_comments', filter: 'order_id=eq.' + orderId },
-      () => callback()
+      { event: '*', schema: 'public', table: 'item_comments' },
+      (payload) => {
+        const newOrderId = (payload.new as Record<string, unknown> | undefined)?.order_id;
+        const oldOrderId = (payload.old as Record<string, unknown> | undefined)?.order_id;
+        if (!newOrderId && !oldOrderId) {
+          callback();
+        } else if (newOrderId === orderId || oldOrderId === orderId) {
+          callback();
+        }
+      }
     )
-    .subscribe();
+    .subscribe((status, err) => {
+      if (err) console.warn('[Realtime:comments] Subscription status:', status, err);
+    });
 
   return () => {
     client.removeChannel(channel);
@@ -484,16 +506,51 @@ export function subscribeToCommentsForOrder(orderId: string, callback: () => voi
 }
 
 export function subscribeToAllComments(callback: () => void): () => void {
-  const client = requireSupabase();
+  if (!isSupabaseConfigured || !supabase) return () => {};
+  const client = supabase;
+  const channelName = `item_comments:all:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
 
   const channel = client
-    .channel('item_comments:all')
+    .channel(channelName)
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'item_comments' },
       () => callback()
     )
-    .subscribe();
+    .subscribe((status, err) => {
+      if (err) console.warn('[Realtime:all_comments] Subscription status:', status, err);
+    });
+
+  return () => {
+    client.removeChannel(channel);
+  };
+}
+
+export function subscribeToAllOrdersAndPrints(callback: () => void): () => void {
+  if (!isSupabaseConfigured || !supabase) return () => {};
+  const client = supabase;
+  const channelName = `dashboard:all:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
+
+  const channel = client
+    .channel(channelName)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'orders' },
+      () => callback()
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'prints' },
+      () => callback()
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'item_comments' },
+      () => callback()
+    )
+    .subscribe((status, err) => {
+      if (err) console.warn('[Realtime:dashboard] Subscription status:', status, err);
+    });
 
   return () => {
     client.removeChannel(channel);
@@ -558,17 +615,38 @@ export async function deleteSubtaskFromPrint(subtaskId: string): Promise<void> {
   if (error) throw error;
 }
 
-export function subscribeToSubtasksForOrder(orderId: string, callback: () => void): () => void {
+export async function moveSubtaskToPrint(subtaskId: string, targetPrintId: string): Promise<void> {
   const client = requireSupabase();
+  const { error } = await client
+    .from('item_subtasks')
+    .update({ print_id: targetPrintId })
+    .eq('id', subtaskId);
+  if (error) throw error;
+}
+
+export function subscribeToSubtasksForOrder(orderId: string, callback: () => void): () => void {
+  if (!isSupabaseConfigured || !supabase) return () => {};
+  const client = supabase;
+  const channelName = `item_subtasks:${orderId}:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
 
   const channel = client
-    .channel('item_subtasks:' + orderId)
+    .channel(channelName)
     .on(
       'postgres_changes',
-      { event: '*', schema: 'public', table: 'item_subtasks', filter: 'order_id=eq.' + orderId },
-      () => callback()
+      { event: '*', schema: 'public', table: 'item_subtasks' },
+      (payload) => {
+        const newOrderId = (payload.new as Record<string, unknown> | undefined)?.order_id;
+        const oldOrderId = (payload.old as Record<string, unknown> | undefined)?.order_id;
+        if (!newOrderId && !oldOrderId) {
+          callback();
+        } else if (newOrderId === orderId || oldOrderId === orderId) {
+          callback();
+        }
+      }
     )
-    .subscribe();
+    .subscribe((status, err) => {
+      if (err) console.warn('[Realtime:subtasks] Subscription status:', status, err);
+    });
 
   return () => {
     client.removeChannel(channel);

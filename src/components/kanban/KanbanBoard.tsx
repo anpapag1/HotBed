@@ -25,7 +25,8 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { Search, Plus, CheckCircle2, SlidersHorizontal } from 'lucide-react';
+import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
+import { Search, Plus, CheckCircle2, SlidersHorizontal, Copy, Check } from 'lucide-react';
 import {
   type PrintItem,
   type PrintStatus,
@@ -48,6 +49,8 @@ import {
   deleteSubtaskFromPrint,
 } from '../../services/orderService';
 import { parseColors } from '../../utils/statusConfig';
+import { hasUnreadComments } from '../../utils/commentService';
+import { copyTextToClipboard, getOrderShareUrl } from '../../utils/clipboard';
 import { FilterPopover, type FilterState, INITIAL_FILTERS } from './FilterPopover';
 import { KanbanColumn } from './KanbanColumn';
 import { PrintCard } from './PrintCard';
@@ -55,6 +58,7 @@ import { DeliveredSidebar } from './DeliveredSidebar';
 import { PrintModal } from './PrintModal';
 import { CommentsDrawer } from './CommentsDrawer';
 import { MobileTabBar } from './MobileTabBar';
+import { SplitCardModal } from './SplitCardModal';
 import styles from './KanbanBoard.module.css';
 
 interface KanbanBoardProps {
@@ -76,6 +80,7 @@ interface KanbanBoardProps {
   }) => Promise<void>;
   onUpdatePrint?: (id: string, updates: Partial<PrintItem>) => Promise<void>;
   onDeletePrint?: (id: string) => Promise<void>;
+  onRefreshPrints?: () => Promise<void> | void;
   pageTitle?: string;
   pageSubtitle?: string;
   customerScroll?: boolean;
@@ -100,6 +105,7 @@ export function KanbanBoard({
   onAddPrint,
   onUpdatePrint,
   onDeletePrint,
+  onRefreshPrints,
   pageTitle = 'Your tasks',
   pageSubtitle,
   customerScroll = false,
@@ -109,10 +115,12 @@ export function KanbanBoard({
   const [overContainer, setOverContainer] = useState<PrintStatus | null>(null);
   const [isOverMobileTab, setIsOverMobileTab] = useState(false);
   const [activeCommentItem, setActiveCommentItem] = useState<PrintItem | null>(null);
+  const [splitTargetItem, setSplitTargetItem] = useState<PrintItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<PrintItem | null>(null);
   const [targetStatus, setTargetStatus] = useState<PrintStatus>('Not Started');
+  const [copiedOrder, setCopiedOrder] = useState(false);
 
   useEffect(() => {
     if (!activeItem) {
@@ -130,30 +138,42 @@ export function KanbanBoard({
   useEffect(() => {
     let isMounted = true;
 
-    fetchCommentsForOrder(orderId)
-      .then((data) => { if (isMounted) setComments(data); })
-      .catch((err) => console.error('Failed to load comments:', err));
-
-    fetchSubtasksForOrder(orderId)
-      .then((data) => { if (isMounted) setSubtasks(data); })
-      .catch((err) => console.error('Failed to load subtasks:', err));
-
-    const unsubComments = subscribeToCommentsForOrder(orderId, () => {
+    const refreshComments = () => {
       fetchCommentsForOrder(orderId)
         .then((data) => { if (isMounted) setComments(data); })
         .catch((err) => console.error('Failed to refresh comments:', err));
-    });
+    };
 
-    const unsubSubtasks = subscribeToSubtasksForOrder(orderId, () => {
+    const refreshSubtasks = () => {
       fetchSubtasksForOrder(orderId)
         .then((data) => { if (isMounted) setSubtasks(data); })
         .catch((err) => console.error('Failed to refresh subtasks:', err));
-    });
+    };
+
+    refreshComments();
+    refreshSubtasks();
+
+    const unsubComments = subscribeToCommentsForOrder(orderId, refreshComments);
+    const unsubSubtasks = subscribeToSubtasksForOrder(orderId, refreshSubtasks);
+
+    const handleSync = () => {
+      if (!document.hidden) {
+        refreshComments();
+        refreshSubtasks();
+      }
+    };
+
+    window.addEventListener('focus', handleSync);
+    document.addEventListener('visibilitychange', handleSync);
+    const interval = setInterval(handleSync, 5000);
 
     return () => {
       isMounted = false;
       unsubComments();
       unsubSubtasks();
+      window.removeEventListener('focus', handleSync);
+      document.removeEventListener('visibilitychange', handleSync);
+      clearInterval(interval);
     };
   }, [orderId]);
 
@@ -183,6 +203,17 @@ export function KanbanBoard({
         c.print_id === printId ? { ...c, has_been_seen: true } : c
       )
     );
+  };
+
+  const handleCopyOrder = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!orderCode) return;
+    const shareUrl = getOrderShareUrl(orderCode);
+    const success = await copyTextToClipboard(shareUrl);
+    if (success) {
+      setCopiedOrder(true);
+      setTimeout(() => setCopiedOrder(false), 2200);
+    }
   };
 
   const handleAddSubtask = async (printId: string, title: string) => {
@@ -251,6 +282,12 @@ export function KanbanBoard({
   );
   const [activeMobileTab, setActiveMobileTab] = useState<PrintStatus>('Not Started');
   const [showDeliveredSheet, setShowDeliveredSheet] = useState(false);
+  const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
+  const [forceOpenDelivered, setForceOpenDelivered] = useState(false);
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const handledCardIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
@@ -259,6 +296,62 @@ export function KanbanBoard({
     setIsMobile(mq.matches);
     return () => mq.removeEventListener('change', handler);
   }, []);
+
+  // Automatically clear card highlight after 3.6s
+  useEffect(() => {
+    if (!highlightedCardId) return;
+    const timer = setTimeout(() => {
+      setHighlightedCardId(null);
+    }, 3600);
+    return () => clearTimeout(timer);
+  }, [highlightedCardId]);
+
+  // Deep-link to specific card via ?cardId=
+  useEffect(() => {
+    if (items.length === 0) return;
+    let targetId = searchParams.get('cardId');
+    if (!targetId) {
+      const hashStr = window.location.hash || '';
+      const match = hashStr.match(/[?&]cardId=([^&]+)/);
+      if (match) {
+        targetId = match[1];
+      }
+    }
+
+    if (!targetId) return;
+    if (handledCardIdRef.current === targetId) return;
+
+    const targetItem = items.find((i) => i.id === targetId);
+    if (targetItem) {
+      handledCardIdRef.current = targetId;
+      if (targetItem.status === 'Delivered') {
+        setShowDeliveredSheet(true);
+        setForceOpenDelivered(true);
+      } else {
+        setActiveMobileTab(targetItem.status);
+      }
+      setHighlightedCardId(targetItem.id);
+
+      // Clean up window query params if cardId was placed before hash
+      if (window.location.search && window.location.search.includes('cardId=')) {
+        const searchParamsObj = new URLSearchParams(window.location.search);
+        searchParamsObj.delete('cardId');
+        const cleanSearch = searchParamsObj.toString();
+        const newUrl = `${window.location.origin}${window.location.pathname}${cleanSearch ? `?${cleanSearch}` : ''}${window.location.hash}`;
+        window.history.replaceState(null, '', newUrl);
+      }
+
+      // Revert the hash URL back to the original /order/:code or /admin/order/:code without ?cardId=
+      navigate(location.pathname, { replace: true });
+
+      setTimeout(() => {
+        const el = document.getElementById(`card-${targetItem.id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 350);
+    }
+  }, [items, searchParams, location, navigate]);
 
   const itemsRef = useRef<PrintItem[]>(items);
   itemsRef.current = items;
@@ -394,6 +487,22 @@ export function KanbanBoard({
     acc[status] = filteredItems.filter((i) => i.status === status).length;
     return acc;
   }, {});
+
+  // Unread indicators across all mobile tabs + delivered FAB
+  const unreadTabs = [...BOARD_COLUMNS, 'Delivered' as PrintStatus].reduce<Record<string, boolean>>(
+    (acc, status) => {
+      const statusItems = items.filter((i) => i.status === status);
+      acc[status] = statusItems.some((item) =>
+        hasUnreadComments(
+          item.id,
+          currentUserRole,
+          comments.filter((c) => c.print_id === item.id)
+        )
+      );
+      return acc;
+    },
+    {}
+  );
 
   // Both Admin and Customer use BOARD_COLUMNS in the main panel, with Delivered always in the right sidebar
   const columnsToRender = BOARD_COLUMNS;
@@ -620,6 +729,22 @@ export function KanbanBoard({
     });
   };
 
+  const handleSplitClick = (item: PrintItem) => {
+    setSplitTargetItem(item);
+  };
+
+  const handleSplitSuccess = async () => {
+    try {
+      const refreshedSubtasks = await fetchSubtasksForOrder(orderId);
+      setSubtasks(refreshedSubtasks);
+    } catch (err) {
+      console.error('Failed to refresh subtasks after split:', err);
+    }
+    if (onRefreshPrints) {
+      await onRefreshPrints();
+    }
+  };
+
   const handleSaveModal = async (data: {
     perigrafi: string;
     xroma: string;
@@ -665,9 +790,10 @@ export function KanbanBoard({
       return;
     }
 
-    // Never track swipe if touch starts on an interactive element (buttons, links, inputs)
+    // Never track swipe if touch starts on an interactive child element (buttons, links, inputs).
+    // Note: Do not block cards themselves, which receive role="button" from dnd-kit.
     const target = e.target as HTMLElement | null;
-    if (target?.closest('button, a, input, textarea, select, [role="button"]')) {
+    if (target?.closest('button, a, input, textarea, select, [role="button"]:not([data-card="true"])')) {
       touchStartXRef.current = null;
       touchStartYRef.current = null;
       isVerticalScrollRef.current = false;
@@ -819,6 +945,29 @@ export function KanbanBoard({
             />
           </div>
 
+          {/* Copy Order Link Button */}
+          {orderCode && (
+            <button
+              type="button"
+              className={`${styles.btnCopyOrder} ${copiedOrder ? styles.btnCopyOrderCopied : ''}`}
+              onClick={handleCopyOrder}
+              title={`Copy link for order #${orderCode}`}
+              aria-label="Copy order link"
+            >
+              {copiedOrder ? (
+                <>
+                  <Check size={14} className={styles.btnCopyCheck} />
+                  <span>Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy size={14} />
+                  <span className={styles.btnCopyOrderText}>Copy Order</span>
+                </>
+              )}
+            </button>
+          )}
+
           {/* New Print Button */}
           {!readOnly && onAddPrint && (
             <button
@@ -869,9 +1018,12 @@ export function KanbanBoard({
                 isAdmin={isAdmin}
                 fullScroll
                 isOver={overContainer === activeMobileTab}
+                highlightedCardId={highlightedCardId}
+                orderCode={orderCode}
                 onEdit={handleEditClick}
                 onDelete={onDeletePrint}
                 onDuplicate={handleDuplicateClick}
+                onSplitCard={isAdmin ? handleSplitClick : undefined}
                 onChangeStatus={isAdmin ? onUpdateStatus : undefined}
                 onAddClick={
                   isAdmin || activeMobileTab === 'Not Started'
@@ -900,9 +1052,12 @@ export function KanbanBoard({
                   readOnly={readOnly}
                   isAdmin={isAdmin}
                   isOver={overContainer === status}
+                  highlightedCardId={highlightedCardId}
+                  orderCode={orderCode}
                   onEdit={handleEditClick}
                   onDelete={onDeletePrint}
                   onDuplicate={handleDuplicateClick}
+                  onSplitCard={isAdmin ? handleSplitClick : undefined}
                   onChangeStatus={isAdmin ? onUpdateStatus : undefined}
                   onAddClick={isAdmin || status === 'Not Started' ? handleAddClick : undefined}
                   onOpenComments={(item) => setActiveCommentItem(item)}
@@ -922,9 +1077,13 @@ export function KanbanBoard({
               readOnly={readOnly}
               isAdmin={isAdmin}
               isOver={overContainer === 'Delivered'}
+              highlightedCardId={highlightedCardId}
+              forceOpen={forceOpenDelivered}
+              orderCode={orderCode}
               onEdit={handleEditClick}
               onDelete={onDeletePrint}
               onDuplicate={handleDuplicateClick}
+              onSplitCard={isAdmin ? handleSplitClick : undefined}
               onChangeStatus={isAdmin ? onUpdateStatus : undefined}
               onOpenComments={(item) => setActiveCommentItem(item)}
               onAddSubtask={handleAddSubtask}
@@ -941,6 +1100,7 @@ export function KanbanBoard({
           <MobileTabBar
             activeTab={activeMobileTab}
             counts={tabCounts}
+            unreadTabs={unreadTabs}
             onTabChange={changeMobileTab}
             deliveredCount={deliveredItems.length}
             onOpenDelivered={() => setShowDeliveredSheet(true)}
@@ -988,11 +1148,20 @@ export function KanbanBoard({
                           item={item}
                           readOnly={!canEdit}
                           isAdmin={isAdmin}
+                          isHighlighted={highlightedCardId === item.id}
+                          orderCode={orderCode}
+                          threadComments={comments.filter((c) => c.print_id === item.id)}
+                          subtasks={subtasks.filter((s) => s.print_id === item.id)}
                           onEdit={canEdit ? handleEditClick : undefined}
                           onDelete={canEdit ? onDeletePrint : undefined}
                           onDuplicate={canEdit ? handleDuplicateClick : undefined}
+                          onSplitCard={isAdmin ? handleSplitClick : undefined}
                           onChangeStatus={isAdmin ? onUpdateStatus : undefined}
                           onOpenComments={(item) => setActiveCommentItem(item)}
+                          onAddSubtask={handleAddSubtask}
+                          onToggleSubtask={handleToggleSubtask}
+                          onUpdateSubtaskTitle={handleUpdateSubtaskTitle}
+                          onDeleteSubtask={handleDeleteSubtask}
                         />
                       );
                     })}
@@ -1023,6 +1192,19 @@ export function KanbanBoard({
           onClose={() => setIsModalOpen(false)}
           onSubmit={handleSaveModal}
           isAdmin={isAdmin}
+        />
+      )}
+
+      {/* Split Card Modal */}
+      {splitTargetItem && (
+        <SplitCardModal
+          isOpen={Boolean(splitTargetItem)}
+          item={splitTargetItem}
+          subtasks={subtasks}
+          orderId={orderId}
+          isAdmin={isAdmin}
+          onClose={() => setSplitTargetItem(null)}
+          onSuccess={handleSplitSuccess}
         />
       )}
 

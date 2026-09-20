@@ -49,11 +49,19 @@ interface MobileTabButtonProps {
   status: PrintStatus;
   activeTab: PrintStatus;
   count: number;
+  hasUnread?: boolean;
   onTabChange: (status: PrintStatus) => void;
   isDragging?: boolean;
 }
 
-function MobileTabButton({ status, activeTab, count, onTabChange, isDragging }: MobileTabButtonProps) {
+function MobileTabButton({
+  status,
+  activeTab,
+  count,
+  hasUnread,
+  onTabChange,
+  isDragging,
+}: MobileTabButtonProps) {
   const { isOver, setNodeRef } = useDroppable({ id: `mobile-tab:${status}` });
   const config = getStatusConfig(status);
   const isActive = status === activeTab;
@@ -80,6 +88,7 @@ function MobileTabButton({ status, activeTab, count, onTabChange, isDragging }: 
       aria-label={status}
       aria-pressed={isActive}
     >
+      {hasUnread && <span className={styles.tabUnreadDot} title="Unread comments" />}
       <span className={styles.tabIcon}>{getTabIcon(status)}</span>
       <span className={styles.tabLabel}>{getTabLabel(status)}</span>
       {count > 0 && (
@@ -93,11 +102,12 @@ function MobileTabButton({ status, activeTab, count, onTabChange, isDragging }: 
 
 interface DeliveredFabProps {
   count: number;
+  hasUnread?: boolean;
   onOpen?: () => void;
   isDragging?: boolean;
 }
 
-function DeliveredFab({ count, onOpen, isDragging }: DeliveredFabProps) {
+function DeliveredFab({ count, hasUnread, onOpen, isDragging }: DeliveredFabProps) {
   const { isOver, setNodeRef } = useDroppable({ id: 'mobile-tab:Delivered' });
 
   const handleTrigger = (e: React.SyntheticEvent) => {
@@ -120,6 +130,9 @@ function DeliveredFab({ count, onOpen, isDragging }: DeliveredFabProps) {
       title="View Delivered Prints"
       aria-label="View Delivered Prints"
     >
+      {hasUnread && (
+        <span className={styles.deliveredFabUnreadDot} title="Unread comments" />
+      )}
       <span className={styles.deliveredFabIcon}>
         <CheckCircle2 size={20} />
       </span>
@@ -135,6 +148,7 @@ interface MobileTabBarProps {
   deliveredCount?: number;
   onOpenDelivered?: () => void;
   isDragging?: boolean;
+  unreadTabs?: Record<string, boolean>;
 }
 
 export function MobileTabBar({
@@ -144,6 +158,7 @@ export function MobileTabBar({
   deliveredCount = 0,
   onOpenDelivered,
   isDragging = false,
+  unreadTabs = {},
 }: MobileTabBarProps) {
   return (
     <div className={styles.tabBarWrapper}>
@@ -157,6 +172,7 @@ export function MobileTabBar({
               status={status}
               activeTab={activeTab}
               count={count}
+              hasUnread={Boolean(unreadTabs[status])}
               onTabChange={onTabChange}
               isDragging={isDragging}
             />
@@ -166,6 +182,7 @@ export function MobileTabBar({
 
       <DeliveredFab
         count={deliveredCount}
+        hasUnread={Boolean(unreadTabs['Delivered'])}
         onOpen={onOpenDelivered}
         isDragging={isDragging}
       />

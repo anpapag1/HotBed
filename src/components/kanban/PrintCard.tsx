@@ -16,6 +16,9 @@ import {
   X,
   MessageSquare,
   RotateCcw,
+  Link2,
+  Check,
+  Split,
 } from 'lucide-react';
 import type { PrintItem, PrintStatus, ItemComment, ItemSubtask } from '../../types/database';
 import {
@@ -26,6 +29,7 @@ import {
 } from '../../utils/statusConfig';
 import { SUBTASK_PRESETS } from '../../utils/subtaskService';
 import { hasUnreadComments } from '../../utils/commentService';
+import { copyTextToClipboard } from '../../utils/clipboard';
 import styles from './PrintCard.module.css';
 
 interface PrintCardProps {
@@ -34,9 +38,12 @@ interface PrintCardProps {
   subtasks?: ItemSubtask[];
   readOnly?: boolean;
   isAdmin?: boolean;
+  isHighlighted?: boolean;
+  orderCode?: string;
   onEdit?: (item: PrintItem) => void;
   onDelete?: (id: string) => void;
   onDuplicate?: (item: PrintItem) => void;
+  onSplitCard?: (item: PrintItem) => void;
   onChangeStatus?: (id: string, newStatus: PrintStatus) => void;
   onOpenComments?: (item: PrintItem) => void;
   onAddSubtask?: (printId: string, title: string) => void;
@@ -52,9 +59,12 @@ export function PrintCard({
   subtasks = [],
   readOnly = false,
   isAdmin = false,
+  isHighlighted = false,
+  orderCode,
   onEdit,
   onDelete,
   onDuplicate,
+  onSplitCard,
   onChangeStatus,
   onOpenComments,
   onAddSubtask,
@@ -65,6 +75,31 @@ export function PrintCard({
 }: PrintCardProps) {
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const actionMenuRef = useRef<HTMLDivElement>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleCopyLink = async () => {
+    try {
+      const origin = window.location.origin;
+      const pathname = window.location.pathname.replace(/\/$/, '');
+      
+      let targetUrl = '';
+      if (orderCode) {
+        targetUrl = `${origin}${pathname}/#/order/${orderCode}?cardId=${item.id}`;
+      } else {
+        const currentHash = window.location.hash || '#/';
+        const [routePath] = currentHash.split('?');
+        targetUrl = `${origin}${pathname}/${routePath}?cardId=${item.id}`;
+      }
+
+      const success = await copyTextToClipboard(targetUrl);
+      if (success) {
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2200);
+      }
+    } catch (err) {
+      console.error('Failed to copy card link:', err);
+    }
+  };
 
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const [newSubtaskText, setNewSubtaskText] = useState('');
@@ -184,12 +219,13 @@ export function PrintCard({
 
   return (
     <div
+      id={`card-${item.id}`}
       ref={!isOverlay ? setNodeRef : undefined}
       style={!isOverlay ? dndStyle : undefined}
       {...(isDraggable ? attributes : {})}
       {...(isDraggable ? listeners : {})}
       data-card="true"
-      className={`${styles.card} ${isOverlay ? styles.overlayCard : ''} ${isDraggable ? styles.draggableCard : ''} ${isDragging && !isOverlay ? styles.ghostCard : ''} ${hasUnread ? styles.cardUnread : ''}`}
+      className={`${styles.card} ${isOverlay ? styles.overlayCard : ''} ${isDraggable ? styles.draggableCard : ''} ${isDragging && !isOverlay ? styles.ghostCard : ''} ${hasUnread ? styles.cardUnread : ''} ${isHighlighted ? styles.glowingCard : ''}`}
     >
       {hasUnread && (
         <span className={styles.unreadBadge} title="Unread comments">
@@ -206,78 +242,107 @@ export function PrintCard({
           </h4>
         </div>
 
-        {canEdit && (onEdit || onDelete || onDuplicate) ? (
-          <div
-            className={styles.topActions}
-            ref={actionMenuRef}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowActionsMenu(!showActionsMenu);
-              }}
-              className={styles.btnAction}
-              title="More actions"
+        <div
+          className={styles.topActions}
+          ref={actionMenuRef}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {!isAdmin && item.status !== 'Not Started' && (
+            <div
+              className={styles.lockedBadge}
+              title="In production — locked from customer editing"
             >
-              <MoreVertical size={15} />
-            </button>
+              <Lock size={13} />
+            </div>
+          )}
 
-            {showActionsMenu && (
-              <div
-                className={styles.menuDropdown}
-                onPointerDown={(e) => e.stopPropagation()}
-              >
-                {onEdit && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowActionsMenu(false);
-                      onEdit(item);
-                    }}
-                    className={styles.menuItem}
-                  >
-                    <Edit2 size={14} />
-                    <span>Edit Specs</span>
-                  </button>
-                )}
-                {onDuplicate && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowActionsMenu(false);
-                      onDuplicate(item);
-                    }}
-                    className={styles.menuItem}
-                  >
-                    <Copy size={14} />
-                    <span>Duplicate</span>
-                  </button>
-                )}
-                {onDelete && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowActionsMenu(false);
-                      onDelete(item.id);
-                    }}
-                    className={`${styles.menuItem} ${styles.menuItemDelete}`}
-                  >
-                    <Trash2 size={14} />
-                    <span>Delete Part</span>
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        ) : !isAdmin && item.status !== 'Not Started' ? (
-          <div
-            className={styles.lockedBadge}
-            title="In production — locked from customer editing"
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowActionsMenu(!showActionsMenu);
+            }}
+            className={styles.btnAction}
+            title="More actions"
           >
-            <Lock size={13} />
-          </div>
-        ) : null}
+            <MoreVertical size={15} />
+          </button>
+
+          {showActionsMenu && (
+            <div
+              className={styles.menuDropdown}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowActionsMenu(false);
+                  handleCopyLink();
+                }}
+                className={styles.menuItem}
+                title="Copy direct link to this card"
+              >
+                {copiedLink ? <Check size={14} color="var(--tag-green-text)" /> : <Link2 size={14} />}
+                <span>{copiedLink ? 'Copied Link!' : 'Copy Link'}</span>
+              </button>
+
+              {canEdit && onEdit && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowActionsMenu(false);
+                    onEdit(item);
+                  }}
+                  className={styles.menuItem}
+                >
+                  <Edit2 size={14} />
+                  <span>Edit Specs</span>
+                </button>
+              )}
+              {canEdit && onDuplicate && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowActionsMenu(false);
+                    onDuplicate(item);
+                  }}
+                  className={styles.menuItem}
+                >
+                  <Copy size={14} />
+                  <span>Duplicate</span>
+                </button>
+              )}
+              {isAdmin && onSplitCard && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowActionsMenu(false);
+                    onSplitCard(item);
+                  }}
+                  className={styles.menuItem}
+                  title="Split into multiple cards"
+                >
+                  <Split size={14} />
+                  <span>Split Card</span>
+                </button>
+              )}
+              {canEdit && onDelete && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowActionsMenu(false);
+                    onDelete(item.id);
+                  }}
+                  className={`${styles.menuItem} ${styles.menuItemDelete}`}
+                >
+                  <Trash2 size={14} />
+                  <span>Delete Part</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Description / Comments */}

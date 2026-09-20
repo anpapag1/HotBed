@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -6,6 +6,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CheckCircle2, ChevronRight, ChevronLeft } from 'lucide-react';
 import type { PrintItem, PrintStatus, ItemComment, ItemSubtask } from '../../types/database';
+import { hasUnreadComments } from '../../utils/commentService';
 import { PrintCard } from './PrintCard';
 import styles from './DeliveredSidebar.module.css';
 
@@ -19,12 +20,16 @@ interface DeliveredSidebarProps {
   onEdit?: (item: PrintItem) => void;
   onDelete?: (id: string) => void;
   onDuplicate?: (item: PrintItem) => void;
+  onSplitCard?: (item: PrintItem) => void;
   onChangeStatus?: (id: string, newStatus: PrintStatus) => void;
   onOpenComments?: (item: PrintItem) => void;
   onAddSubtask?: (printId: string, title: string) => void;
   onToggleSubtask?: (subtaskId: string, completed: boolean) => void;
   onUpdateSubtaskTitle?: (subtaskId: string, title: string) => void;
   onDeleteSubtask?: (subtaskId: string) => void;
+  highlightedCardId?: string | null;
+  forceOpen?: boolean;
+  orderCode?: string;
 }
 
 export function DeliveredSidebar({
@@ -34,9 +39,13 @@ export function DeliveredSidebar({
   readOnly = false,
   isAdmin = false,
   isOver = false,
+  highlightedCardId,
+  forceOpen = false,
+  orderCode,
   onEdit,
   onDelete,
   onDuplicate,
+  onSplitCard,
   onChangeStatus,
   onOpenComments,
   onAddSubtask,
@@ -44,12 +53,27 @@ export function DeliveredSidebar({
   onUpdateSubtaskTitle,
   onDeleteSubtask,
 }: DeliveredSidebarProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(forceOpen);
+
+  useEffect(() => {
+    if (forceOpen) {
+      setIsOpen(true);
+    }
+  }, [forceOpen]);
 
   const { setNodeRef } = useDroppable({
     id: 'Delivered',
     disabled: readOnly || !isAdmin,
   });
+
+  const viewerRole = isAdmin ? 'admin' : 'customer';
+  const hasDeliveredUnread = items.some((item) =>
+    hasUnreadComments(
+      item.id,
+      viewerRole,
+      comments.filter((c) => c.print_id === item.id)
+    )
+  );
 
   return (
     <aside
@@ -63,6 +87,12 @@ export function DeliveredSidebar({
               <CheckCircle2 size={18} color="var(--status-delivered)" />
               <span className={styles.title}>Delivered</span>
               <span className={styles.badge}>{items.length}</span>
+              {hasDeliveredUnread && (
+                <span
+                  className={styles.deliveredUnreadDot}
+                  title="Unread comments in Delivered"
+                />
+              )}
             </div>
             <button
               onClick={() => setIsOpen(false)}
@@ -86,11 +116,14 @@ export function DeliveredSidebar({
                     item={item}
                     threadComments={comments.filter((c) => c.print_id === item.id)}
                     subtasks={subtasks.filter((s) => s.print_id === item.id)}
-                    readOnly={readOnly}
+                    readOnly={!canEdit}
                     isAdmin={isAdmin}
+                    isHighlighted={highlightedCardId === item.id}
+                    orderCode={orderCode}
                     onEdit={canEdit ? onEdit : undefined}
                     onDelete={canEdit ? onDelete : undefined}
                     onDuplicate={canEdit ? onDuplicate : undefined}
+                    onSplitCard={isAdmin ? onSplitCard : undefined}
                     onChangeStatus={isAdmin ? onChangeStatus : undefined}
                     onOpenComments={onOpenComments}
                     onAddSubtask={onAddSubtask}
@@ -130,6 +163,12 @@ export function DeliveredSidebar({
             Delivered ({items.length})
           </div>
           <span className={styles.badge}>{items.length}</span>
+          {hasDeliveredUnread && (
+            <span
+              className={styles.deliveredUnreadDot}
+              title="Unread comments in Delivered"
+            />
+          )}
         </div>
       )}
     </aside>

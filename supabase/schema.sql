@@ -435,6 +435,20 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'orders'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE orders;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'prints'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE prints;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
     WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'item_comments'
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE item_comments;
@@ -447,6 +461,11 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE item_subtasks;
   END IF;
 END $$;
+
+ALTER TABLE orders REPLICA IDENTITY FULL;
+ALTER TABLE prints REPLICA IDENTITY FULL;
+ALTER TABLE item_comments REPLICA IDENTITY FULL;
+ALTER TABLE item_subtasks REPLICA IDENTITY FULL;
 
 -- ==============================================================================
 -- 10. MIGRATION: Add has_been_seen to item_comments (Run in SQL Editor on existing DB)
